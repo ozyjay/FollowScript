@@ -10,7 +10,7 @@ swift test
 
 It compiles only `Models` and `Alignment`, then runs XCTest on macOS. This is the fastest alignment regression gate and needs no microphone, simulator or network.
 
-The Xcode project contains `FollowScriptTests`, including the same core tests plus the mock recognition stream test. Build without signing:
+The Xcode project contains `FollowScriptTests`, including the same core tests, mock recognition stream tests and a rapid pause/resume lifecycle regression. That regression holds cleanup open for 100 milliseconds and verifies that the replacement session cannot start concurrently. Build without signing:
 
 ```sh
 xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -configuration Debug -sdk iphonesimulator -derivedDataPath /tmp/FollowScriptDerivedData CODE_SIGNING_ALLOWED=NO build
@@ -38,7 +38,7 @@ Record device, iOS, locale, date and observations rather than merely ticking box
 - [ ] First microphone permission and speech permission prompts
 - [ ] Denial state and recovery after changing Settings
 - [ ] First start, including any iOS 26 language-asset installation
-- [ ] Pause/resume and repeated recognition restart
+- [ ] Pause/resume and repeated recognition restart (retest the duplicate-tap crash fix)
 - [ ] Ten-minute continuous speech and long pauses
 - [ ] Partial-result latency and alignment responsiveness
 - [ ] Omissions, restarts, repeated passages and an intentional paragraph skip
@@ -49,4 +49,4 @@ Record device, iOS, locale, date and observations rather than merely ticking box
 - [ ] Large prompt sizes, VoiceOver controls and contrast
 - [ ] Battery and thermal behaviour for a realistic presentation
 
-At implementation time none of these device checks had been run. Follow `.skills/testing/SKILL.md`; report exact commands and do not turn a build-only result into a test claim.
+A device run exposed the former duplicate-tap crash, but the corrected lifecycle implementation has not yet been rerun on that device. Treat every unchecked item as unverified. Follow `.skills/testing/SKILL.md`; report exact commands and do not turn a build-only result into a test claim.

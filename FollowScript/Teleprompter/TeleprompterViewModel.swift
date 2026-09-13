@@ -17,6 +17,7 @@ final class TeleprompterViewModel: ObservableObject {
     private let service: any SpeechRecognitionService
     private let engine: ScriptAlignmentEngine
     private var recognitionTask: Task<Void, Never>?
+    private var restartTask: Task<Void, Never>?
     private var followResumeTask: Task<Void, Never>?
     private var lastScrollTarget: Int?
     private var wantsRecognition = false
@@ -36,9 +37,13 @@ final class TeleprompterViewModel: ObservableObject {
     var trackingState: AlignmentTrackingState { alignmentState.trackingState }
 
     func start() {
-        guard recognitionTask == nil else { return }
         wantsRecognition = true
         errorMessage = nil
+        launchRecognitionIfNeeded()
+    }
+
+    private func launchRecognitionIfNeeded() {
+        guard recognitionTask == nil else { return }
         recognitionTask = Task { [weak self] in
             await self?.recognitionLoop()
         }
@@ -47,15 +52,32 @@ final class TeleprompterViewModel: ObservableObject {
     func pause() {
         wantsRecognition = false
         isListening = false
+        restartTask?.cancel()
+        restartTask = nil
         recognitionTask?.cancel()
-        recognitionTask = nil
-        Task { await service.stop() }
     }
 
-    func resume() { start() }
+    func resume() {
+        wantsRecognition = true
+        errorMessage = nil
+        guard let activeTask = recognitionTask else {
+            launchRecognitionIfNeeded()
+            return
+        }
+
+        restartTask?.cancel()
+        restartTask = Task { [weak self] in
+            await activeTask.value
+            guard let self, self.wantsRecognition, !Task.isCancelled else { return }
+            self.restartTask = nil
+            self.launchRecognitionIfNeeded()
+        }
+    }
 
     func stop() {
         pause()
+        restartTask?.cancel()
+        restartTask = nil
         followResumeTask?.cancel()
     }
 

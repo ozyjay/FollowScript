@@ -14,10 +14,12 @@ The generated Info.plist contains `NSMicrophoneUsageDescription` and `NSSpeechRe
 
 Partial and final framework results become `SpeechRecognitionUpdate` values containing text, finality, timestamp and optional confidence. The alignment engine uses its own lexical confidence; Apple segment confidence is diagnostic input only on the legacy path.
 
-Pause, exit and background transitions stop the engine, remove the tap, finish/cancel recognition, close continuations and deactivate the audio session. Resume creates a new session. Natural recognition completion restarts after a short delay while the user still wants recognition.
+Pause, exit and background transitions stop the engine, remove the tap, finish/cancel recognition, close continuations and deactivate the audio session. Tap removal is tracked explicitly and does not depend on `AVAudioEngine.isRunning`, because an engine may be stopped while its input-node tap still exists.
+
+Each Apple backend assigns a monotonically increasing generation to start/stop requests. After every suspending permission, asset or analyser operation, start verifies that it still owns the current generation before touching the audio graph. A newer stop or start cancels stale work. The view model retains its recognition task during asynchronous cleanup, and Resume waits for that task to finish before launching a replacement session. Natural recognition completion still restarts after a short delay while the user wants recognition.
 
 ## On-device behaviour and limitations
 
 The legacy path explicitly requires on-device recognition. The iOS 26 SpeechAnalyzer architecture uses downloaded Apple speech assets, but framework/OS implementation remains Apple-controlled. FollowScript has no cloud speech integration and does not send script text to any endpoint. This code-level review does not prove every OS/device combination is offline.
 
-The source was compiled against the iOS 26.5 SDK. Live microphone input, model installation, partial-result latency, interruptions and restart have not yet been observed on a physical iPhone. Simulator behaviour is not accepted as verification. Follow `.skills/speech-recognition/SKILL.md` for changes.
+The source was compiled against the iOS 26.5 SDK. A physical-device trace exposed a duplicate input-tap crash during overlapping session lifecycle work; generation ownership, unconditional tracked tap removal and a delayed-cleanup regression test were added. The corrected build still requires physical-device retesting. Live accuracy, model installation, partial-result latency and interruption recovery also remain unverified. Simulator behaviour is not accepted as device verification. Follow `.skills/speech-recognition/SKILL.md` for changes.

@@ -68,6 +68,6 @@ The current script and settings are stored in `UserDefaults`. Audio buffers are 
 
 ## Known limitations and roadmap
 
-Live recognition, interruptions, long sessions, offline behaviour and thermal use still require physical-iPhone verification. Alignment is word based and does not use phonetic similarity, semantic paraphrase matching or language-specific contraction expansion. Teleprompter rows are grouped in eight-token blocks, so very large fonts scroll at row granularity. There is no script library, import pipeline, remote control, recording or cloud sync.
+The corrected pause/resume lifecycle needs physical-iPhone retesting after a device trace exposed the former duplicate-tap crash. Live recognition, interruptions, long sessions, offline behaviour and thermal use also require physical-iPhone verification. Alignment is word based and does not use phonetic similarity, semantic paraphrase matching or language-specific contraction expansion. Teleprompter rows are grouped in eight-token blocks, so very large fonts scroll at row granularity. There is no script library, import pipeline, remote control, recording or cloud sync.
 
 Useful next work is physical-device tuning, mock-driven view-model integration tests, VoiceOver/Dynamic Type UI testing, richer interruption recovery, and evidence-led alignment tuning from real recognition traces.
