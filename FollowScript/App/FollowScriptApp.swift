@@ -6,7 +6,7 @@ struct FollowScriptApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ScriptEditorView(model: model)
+            RootView(model: model)
         }
     }
 }

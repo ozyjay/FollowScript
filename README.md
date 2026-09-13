@@ -22,7 +22,8 @@ xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -configuration D
 
 - Persistent single-script editor and persistent font, spacing, alignment, highlighting, prompt-flip and display-awake settings
 - Files import for DOCX, ODT, Markdown, plain text, RTF and HTML scripts
-- Portrait/landscape teleprompter with an active four-word phrase and a 40% reading zone
+- Brief branded loading screen with the current app version and build number
+- Portrait/landscape teleprompter with a centred active word, visible look-ahead text and a 40% reading zone
 - Speech-driven, thresholded scrolling; no timer-based movement
 - Manual scrolling with a six-second auto-follow pause and explicit return control
 - Pause, resume, exit and user-facing permission/error states

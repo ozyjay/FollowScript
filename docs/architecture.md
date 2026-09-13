@@ -18,6 +18,8 @@ flowchart TD
 
 `TeleprompterViewModel` owns session intent, recognition tasks, alignment state, errors and follow-suspension timing on the main actor. SwiftUI observes published state and decides only how to display it. `AppModel` owns the current script, settings and their `UserDefaults` persistence.
 
+`RootView` presents a brief in-app loading screen before the editor. It displays a presentation copy of the app icon and reads the current marketing version and build number from the application bundle; it does not perform network or speech initialisation.
+
 `ScriptFileImporter` is the editor’s local document boundary. It reads security-scoped Files URLs, converts supported plain, attributed and ZIP-packaged XML documents to a `String`, then releases access. Only the resulting text crosses into `AppModel`; imported formatting and source-file access are not retained.
 
 Audio callbacks feed framework-owned requests or streams; session results return to main-actor state before UI mutation. Cancelling or backgrounding ends audio input, recognition tasks and streams. Dependencies point from presentation to abstractions/domain types, never from the alignment engine to UI or Apple Speech.
