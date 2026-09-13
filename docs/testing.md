@@ -1,0 +1,52 @@
+# Testing
+
+## Automated suites
+
+The portable deterministic core harness uses the active Swift toolchain:
+
+```sh
+swift test
+```
+
+It compiles only `Models` and `Alignment`, then runs XCTest on macOS. This is the fastest alignment regression gate and needs no microphone, simulator or network.
+
+The Xcode project contains `FollowScriptTests`, including the same core tests plus the mock recognition stream test. Build without signing:
+
+```sh
+xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -configuration Debug -sdk iphonesimulator -derivedDataPath /tmp/FollowScriptDerivedData CODE_SIGNING_ALLOWED=NO build
+```
+
+Run the full target on an installed simulator/device, substituting an available destination:
+
+```sh
+xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -destination 'platform=iOS Simulator,name=iPhone 17' test
+```
+
+`AlignmentFixtures.presentation` is a multi-paragraph presentation. Sequential recognition fragments verify stable forward progression across omissions, punctuation changes and paragraph boundaries. Smaller cases cover each edge condition precisely.
+
+## What each environment proves
+
+- `swift test`: token/source mapping and deterministic alignment only.
+- Unsigned Xcode build: app/UI/Speech source compiles and links for iOS Simulator.
+- Simulator XCTest: mock and app-host integration; not microphone quality.
+- Physical iPhone: permissions, actual models/audio, interruptions, latency, scrolling and orientation.
+
+## Physical-iPhone checklist
+
+Record device, iOS, locale, date and observations rather than merely ticking boxes.
+
+- [ ] First microphone permission and speech permission prompts
+- [ ] Denial state and recovery after changing Settings
+- [ ] First start, including any iOS 26 language-asset installation
+- [ ] Pause/resume and repeated recognition restart
+- [ ] Ten-minute continuous speech and long pauses
+- [ ] Partial-result latency and alignment responsiveness
+- [ ] Omissions, restarts, repeated passages and an intentional paragraph skip
+- [ ] Manual scrolling, delayed follow return and explicit return control
+- [ ] Portrait/landscape rotation during recognition
+- [ ] Phone call/audio-session interruption and app background/foreground
+- [ ] Airplane/offline operation for the selected locale
+- [ ] Large prompt sizes, VoiceOver controls and contrast
+- [ ] Battery and thermal behaviour for a realistic presentation
+
+At implementation time none of these device checks had been run. Follow `.skills/testing/SKILL.md`; report exact commands and do not turn a build-only result into a test claim.
