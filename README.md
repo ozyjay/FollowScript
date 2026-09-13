@@ -12,6 +12,8 @@ FollowScript is a native iPhone speech-following teleprompter. You provide a pre
 
 Open `FollowScript.xcodeproj`, select the `FollowScript` scheme and an iPhone, then Build and Run. No third-party packages, accounts, API keys or backend are required.
 
+The displayed build number is generated from the current Git commit count whenever the shared scheme builds. See [versioning.md](docs/versioning.md) for archive and shallow-checkout considerations.
+
 Command-line build:
 
 ```sh

@@ -18,3 +18,4 @@ xcuserdata/
 .env
 .env.*
 !*.env.example
+Config/GitBuildNumber.xcconfig

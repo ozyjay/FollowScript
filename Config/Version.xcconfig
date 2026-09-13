@@ -1,0 +1,6 @@
+// The shared scheme writes the checkout's current Git commit count here.
+// Keep a valid fallback for builds made without that scheme pre-action.
+GIT_COMMIT_COUNT = 1
+#include? "GitBuildNumber.xcconfig"
+
+CURRENT_PROJECT_VERSION = $(GIT_COMMIT_COUNT)
