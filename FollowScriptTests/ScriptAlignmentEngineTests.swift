@@ -49,14 +49,31 @@ final class ScriptAlignmentEngineTests: XCTestCase {
         let script = ScriptDocument(text: "We begin together. Some material sits here. We begin together. The final section follows.")
         let previous = AlignmentState(tokenIndex: 3, confidence: 0.9, trackingState: .tracking, lowConfidenceUpdates: 0)
         let result = engine.align(script: script, recognisedText: "we begin together", previous: previous)
-        XCTAssertLessThan(result.tokenIndex ?? 99, 7)
+        XCTAssertEqual(result.tokenIndex, 9)
     }
 
-    func testBackwardsSentenceRestart() {
+    func testEarlierSentenceCannotMovePositionBackwards() {
         let script = ScriptDocument(text: "First we explain the goal. Next we describe the method. Finally we share the result.")
-        let previous = AlignmentState(tokenIndex: 9, confidence: 0.9, trackingState: .tracking, lowConfidenceUpdates: 0)
+        let previous = AlignmentState(tokenIndex: 13, confidence: 0.9, trackingState: .tracking, lowConfidenceUpdates: 0)
         let result = engine.align(script: script, recognisedText: "next we describe the method", previous: previous)
-        XCTAssertEqual(result.tokenIndex, 9)
+        XCTAssertEqual(result.tokenIndex, 13)
+        XCTAssertNil(result.matchedRange)
+    }
+
+    func testGlobalReacquisitionCannotSearchBehindCurrentPosition() {
+        let script = ScriptDocument(text: "Crimson falcon circles silent canyon. Middle transition. Silver ocean carries distant lanterns.")
+        let previous = AlignmentState(tokenIndex: 7, confidence: 0.2, trackingState: .reacquiring, lowConfidenceUpdates: 2)
+
+        let result = engine.align(
+            script: script,
+            recognisedText: "crimson falcon circles silent canyon",
+            previous: previous,
+            isFinal: true
+        )
+
+        XCTAssertEqual(result.searchMode, .global)
+        XCTAssertEqual(result.tokenIndex, 7)
+        XCTAssertNil(result.matchedRange)
     }
 
     func testForwardSentenceAndParagraphSkipReacquires() {

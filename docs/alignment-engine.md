@@ -16,15 +16,15 @@ Each possible candidate ending is evaluated across lengths within four tokens of
 + 0.20 × LCS / recognised sequence
 ```
 
-This tolerates omitted, inserted and mistaken words while rewarding order and recognised-word coverage. Local candidates receive up to `0.10` continuity bonus, decaying with distance from the previous token.
+This tolerates omitted, inserted and mistaken words while rewarding order and recognised-word coverage. Local candidates receive up to `0.10` continuity bonus, decaying with forward distance from the previous token.
 
 Confidence scales the candidate score by evidence: `score × (0.62 + 0.38 × min(unique recognised tokens / 5, 1))`. Final results add `0.03`. Short fragments can therefore track, but provide less authority than a distinctive phrase.
 
 ## Tracking, uncertainty and reacquisition
 
-Tracked updates search 18 tokens backwards and 80 forwards. Limited backward movement supports a current/previous sentence restart; the wider forward side supports natural progress. A local result below `0.48` is rejected. Confidence at or above `0.62` reports `tracking`; weaker accepted evidence reports `uncertain`.
+Once a current token exists, candidate ranges must begin at that token or later. Tracked updates search from the current token through 80 tokens ahead, so alignment is monotonic and recognised wording from an earlier passage cannot move the prompt backwards. A local result below `0.48` is rejected. Confidence at or above `0.62` reports `tracking`; weaker accepted evidence reports `uncertain`.
 
-Two consecutive rejected updates move state to `reacquiring`. The following update searches the whole script. Global evidence must reach `0.66`; a distant jump also requires at least three recognised tokens. This prevents a single dubious update moving to another repeated phrase. Global candidates beyond the local look-ahead receive a small `0.03` penalty where a previous position exists.
+Two consecutive rejected updates move state to `reacquiring`. The following update searches from the current token to the end of the script; only initial acquisition searches the whole script. Global evidence must reach `0.66`; a distant jump also requires at least three recognised tokens. This prevents a single dubious update moving to another repeated phrase. Global candidates beyond the local look-ahead receive a small `0.03` penalty where a previous position exists.
 
 If evidence is insufficient, position remains unchanged and the low-confidence counter advances. Empty input never moves position.
 
@@ -34,10 +34,10 @@ For “The research demonstrates that cybersickness remains a significant challe
 
 If the script reads “We first examined attention. We then examined participant comfort. Finally, we considered confidence” and speech jumps to “finally we considered confidence”, two unrelated/weak updates first enter reacquisition. The distinctive four-token phrase can then pass the global threshold and move to the final sentence.
 
-When “we begin together” occurs twice, local continuity bonus favours the occurrence near the previous token. A distant occurrence becomes eligible only after tracking loss and stronger global evidence.
+When “we begin together” occurs twice and the first occurrence is already behind the current token, only the later occurrence is eligible. A distant forward occurrence may require tracking loss and stronger global evidence.
 
 ## Complexity and limitations
 
-With recognition window `W ≤ 16`, candidate length tolerance `T = 4`, local search span `B ≤ 99`, and script length `N`, dynamic-programming comparison is approximately `O(B × T × W²)` while tracking and `O(N × T × W²)` during reacquisition. Storage per comparison is `O(W)`.
+With recognition window `W ≤ 16`, candidate length tolerance `T = 4`, local search span `B ≤ 81`, and remaining script length `N`, dynamic-programming comparison is approximately `O(B × T × W²)` while tracking and `O(N × T × W²)` during reacquisition. Storage per comparison is `O(W)`.
 
 The current engine is lexical: homophones, heavy paraphrase and languages requiring specialised word segmentation are weak cases. Confidence is algorithmic, not a calibrated probability. Tuning changes must follow `.skills/alignment-engine/SKILL.md`, update this document and pass deterministic fixtures.

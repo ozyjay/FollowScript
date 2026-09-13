@@ -13,6 +13,7 @@ Use for changes under `FollowScript/Models`, `FollowScript/Alignment`, or alignm
 
 - Preserve the original script and UTF-16 source ranges; matching uses normalised tokens.
 - Keep `ScriptAlignmentEngine` deterministic, `Sendable`, and independent of Speech/UI types.
+- Once an initial position exists, never score candidate ranges beginning before the current token; both local and reacquisition searches are forward-only.
 - During tracking, bound search around prior position. Enter global search only after sustained poor evidence, and guard large jumps.
 - Name and document tuning constants in `Configuration`; do not scatter literals.
 
@@ -27,7 +28,7 @@ Use for changes under `FollowScript/Models`, `FollowScript/Alignment`, or alignm
 ## Validation checklist
 
 - Source mapping and normalisation tests pass.
-- Omissions, insertions, fillers, repetition, restarts and forward skips remain covered.
+- Omissions, insertions, fillers, repetition, forward-only matching and forward skips remain covered.
 - One weak update cannot trigger a distant jump.
 - Local tracking does not rescore the entire script.
 - Exact commands and results are reported.

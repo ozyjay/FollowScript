@@ -142,7 +142,7 @@ final class TeleprompterViewModel: ObservableObject {
         candidateScore = result.candidateScore
 
         guard let tokenIndex = result.tokenIndex, !automaticFollowingSuspended else { return }
-        let progressed = lastScrollTarget.map { tokenIndex - $0 >= 6 || tokenIndex < $0 - 5 } ?? true
+        let progressed = lastScrollTarget.map { tokenIndex - $0 >= 6 } ?? true
         if progressed {
             scrollTarget = tokenIndex
             lastScrollTarget = tokenIndex

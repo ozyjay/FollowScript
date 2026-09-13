@@ -45,7 +45,7 @@ Recorded observation: on 13 September 2026, the user confirmed that physical-iPh
 - [ ] Ten-minute continuous speech and long pauses
 - [ ] Partial-result latency and alignment responsiveness
 - [ ] Horizontal, vertical and combined prompt-flip readability through the teleprompter glass in portrait and landscape
-- [ ] Omissions, restarts, repeated passages and an intentional paragraph skip
+- [ ] Omissions, repeated passages, an intentional paragraph skip and speech from behind the current position
 - [ ] Manual scrolling, delayed follow return and explicit return control
 - [ ] Portrait/landscape rotation during recognition
 - [ ] Phone call/audio-session interruption and app background/foreground

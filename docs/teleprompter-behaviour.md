@@ -8,7 +8,7 @@ Top content padding places the first row at roughly 34% of screen height. Automa
 
 ## Automatic following
 
-Position comes only from `ScriptAlignmentEngine`. There is no timer scroll. The view model emits a new scroll target after at least six forward tokens or more than five backward tokens; moving animation is ease-in-out over 0.45 seconds. Row grouping and thresholds deliberately avoid movement on every partial token.
+Position comes only from `ScriptAlignmentEngine`. There is no timer scroll. Matching and scroll targets are monotonic once an initial position is acquired: earlier script wording cannot move the prompt backwards. The view model emits a new scroll target after at least six forward tokens; moving animation is ease-in-out over 0.45 seconds. Row grouping and the threshold deliberately avoid movement on every partial token.
 
 ## Manual priority and controls
 

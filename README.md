@@ -63,7 +63,7 @@ Run the Xcode suite on an available simulator:
 xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -destination 'platform=iOS Simulator,name=iPhone 17' test
 ```
 
-The core suite covers source mapping, normalisation, exact reading, punctuation/case variation, omissions, insertions, fillers, recognition errors, repetition, sentence restart, low confidence, partial results, local tracking, paragraph skips and global reacquisition. More detail and the physical-iPhone checklist are in [testing.md](docs/testing.md).
+The core suite covers source mapping, normalisation, exact reading, punctuation/case variation, omissions, insertions, fillers, recognition errors, repetition, forward-only matching, low confidence, partial results, local tracking, paragraph skips and global reacquisition. More detail and the physical-iPhone checklist are in [testing.md](docs/testing.md).
 
 ## Privacy
 

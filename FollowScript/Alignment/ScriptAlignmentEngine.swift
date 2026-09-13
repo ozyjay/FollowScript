@@ -3,7 +3,6 @@ import Foundation
 struct ScriptAlignmentEngine: Sendable {
     struct Configuration: Equatable, Sendable {
         var recognitionWindow = 16
-        var localBacktrack = 18
         var localLookAhead = 80
         var lengthTolerance = 4
         var uncertainThreshold = 0.48
@@ -43,6 +42,7 @@ struct ScriptAlignmentEngine: Sendable {
             scriptTokens: script.tokens.map(\.normalised),
             recognised: recognised,
             endBounds: bounds,
+            minimumCandidateStart: previous.tokenIndex ?? 0,
             previousIndex: previous.tokenIndex,
             global: useGlobalSearch
         )
@@ -91,8 +91,11 @@ struct ScriptAlignmentEngine: Sendable {
         previous: AlignmentState,
         global: Bool
     ) -> ClosedRange<Int> {
-        guard !global, let index = previous.tokenIndex else { return 0...(scriptCount - 1) }
-        return max(0, index - configuration.localBacktrack)...min(scriptCount - 1, index + configuration.localLookAhead)
+        guard let index = previous.tokenIndex else { return 0...(scriptCount - 1) }
+        let upperBound = global
+            ? scriptCount - 1
+            : min(scriptCount - 1, index + configuration.localLookAhead)
+        return index...upperBound
     }
 
     private struct Candidate {
@@ -105,6 +108,7 @@ struct ScriptAlignmentEngine: Sendable {
         scriptTokens: [String],
         recognised: [String],
         endBounds: ClosedRange<Int>,
+        minimumCandidateStart: Int,
         previousIndex: Int?,
         global: Bool
     ) -> Candidate? {
@@ -115,15 +119,14 @@ struct ScriptAlignmentEngine: Sendable {
         for end in endBounds {
             for length in minimumLength...maximumLength {
                 let start = end - length + 1
-                guard start >= 0 else { continue }
+                guard start >= minimumCandidateStart else { continue }
                 let scriptSlice = Array(scriptTokens[start...end])
                 var score = similarity(recognised, scriptSlice)
                 if let previousIndex {
                     let delta = end - previousIndex
-                    if delta >= -configuration.localBacktrack && delta <= configuration.localLookAhead {
-                        score += 0.10 * (1 - min(1, Double(abs(delta)) / Double(configuration.localLookAhead)))
+                    if delta <= configuration.localLookAhead {
+                        score += 0.10 * (1 - min(1, Double(delta) / Double(configuration.localLookAhead)))
                     }
-                    if delta < -configuration.localBacktrack { score -= 0.12 }
                     if global && delta > configuration.localLookAhead { score -= 0.03 }
                 }
                 let candidate = Candidate(start: start, end: end, score: min(1, max(0, score)))
