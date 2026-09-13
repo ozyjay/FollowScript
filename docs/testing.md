@@ -51,6 +51,7 @@ Recorded observation: on 13 September 2026, the user confirmed that physical-iPh
 - [ ] Phone call/audio-session interruption and app background/foreground
 - [ ] Airplane/offline operation for the selected locale
 - [ ] Large prompt sizes, VoiceOver controls and contrast
+- [ ] Keep-display-awake behaviour while prompting, backgrounding and exiting
 - [ ] Import representative DOCX, ODT, Markdown, RTF and Files-provider documents
 - [ ] Battery and thermal behaviour for a realistic presentation
 

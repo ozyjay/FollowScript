@@ -31,6 +31,9 @@ struct SettingsView: View {
                     Toggle("Mirror prompt horizontally", isOn: $model.settings.mirrorsPrompt)
 
                     Toggle("Flip prompt vertically", isOn: $model.settings.flipsPromptVertically)
+
+                    Toggle("Keep display awake", isOn: $model.settings.keepsDisplayAwake)
+                        .accessibilityHint("Prevents auto-lock while the teleprompter is open and may use more battery")
                 }
             }
             .navigationTitle("Settings")

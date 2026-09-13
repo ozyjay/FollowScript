@@ -5,7 +5,7 @@ FollowScript requests microphone access and Apple speech-recognition authorisati
 ## Stored locally
 
 - The current script is stored in app `UserDefaults`.
-- Font size, line spacing, alignment, highlighting and prompt-flip preferences are stored in `UserDefaults`.
+- Font size, line spacing, alignment, highlighting, prompt-flip and display-awake preferences are stored in `UserDefaults`.
 
 ## Not stored or added
 

@@ -20,7 +20,7 @@ xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -configuration D
 
 ## MVP
 
-- Persistent single-script editor and persistent font, spacing, alignment, highlighting, horizontal-mirror and vertical-flip settings
+- Persistent single-script editor and persistent font, spacing, alignment, highlighting, prompt-flip and display-awake settings
 - Files import for DOCX, ODT, Markdown, plain text, RTF and HTML scripts
 - Portrait/landscape teleprompter with an active four-word phrase and a 40% reading zone
 - Speech-driven, thresholded scrolling; no timer-based movement

@@ -1,9 +1,11 @@
 import SwiftUI
+import UIKit
 
 struct TeleprompterView: View {
     @StateObject private var model: TeleprompterViewModel
     @State private var showsDiagnostics = false
     @State private var pausedByUser = false
+    @State private var previousIdleTimerDisabled: Bool?
     @Environment(\.scenePhase) private var scenePhase
 
     @Binding var settings: FollowScriptSettings
@@ -66,14 +68,22 @@ struct TeleprompterView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear { beginManagingDisplaySleep() }
         .task { model.start() }
-        .onDisappear { model.stop() }
+        .onDisappear {
+            model.stop()
+            restoreDisplaySleepSetting()
+        }
+        .onChange(of: settings.keepsDisplayAwake) { _, _ in
+            updateDisplaySleepSetting()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 if !pausedByUser, !model.isListening { model.resume() }
             } else {
                 model.pause()
             }
+            updateDisplaySleepSetting()
         }
         .alert("FollowScript needs attention", isPresented: errorBinding) {
             Button("Try again") {
@@ -169,6 +179,29 @@ struct TeleprompterView: View {
     private var textAlignment: TextAlignment { settings.textAlignment == .centre ? .center : .leading }
     private var errorBinding: Binding<Bool> {
         Binding(get: { model.errorMessage != nil }, set: { _ in })
+    }
+
+    @MainActor
+    private func beginManagingDisplaySleep() {
+        if previousIdleTimerDisabled == nil {
+            previousIdleTimerDisabled = UIApplication.shared.isIdleTimerDisabled
+        }
+        updateDisplaySleepSetting()
+    }
+
+    @MainActor
+    private func updateDisplaySleepSetting() {
+        guard let previousIdleTimerDisabled else { return }
+        UIApplication.shared.isIdleTimerDisabled = settings.keepsDisplayAwake && scenePhase == .active
+            ? true
+            : previousIdleTimerDisabled
+    }
+
+    @MainActor
+    private func restoreDisplaySleepSetting() {
+        guard let previousIdleTimerDisabled else { return }
+        UIApplication.shared.isIdleTimerDisabled = previousIdleTimerDisabled
+        self.previousIdleTimerDisabled = nil
     }
 }
 
