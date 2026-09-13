@@ -6,12 +6,12 @@ struct TeleprompterView: View {
     @State private var pausedByUser = false
     @Environment(\.scenePhase) private var scenePhase
 
-    let settings: FollowScriptSettings
+    @Binding var settings: FollowScriptSettings
     let onExit: () -> Void
 
-    init(scriptText: String, settings: FollowScriptSettings, onExit: @escaping () -> Void) {
+    init(scriptText: String, settings: Binding<FollowScriptSettings>, onExit: @escaping () -> Void) {
         _model = StateObject(wrappedValue: TeleprompterViewModel(scriptText: scriptText))
-        self.settings = settings
+        _settings = settings
         self.onExit = onExit
     }
 
@@ -35,6 +35,7 @@ struct TeleprompterView: View {
                             Color.clear.frame(height: geometry.size.height * 0.55)
                         }
                         .padding(.horizontal, max(24, geometry.size.width * 0.07))
+                        .scaleEffect(x: settings.mirrorsPrompt ? -1 : 1, y: 1, anchor: .center)
                     }
                     .scrollIndicators(.hidden)
                     .simultaneousGesture(
@@ -100,6 +101,15 @@ struct TeleprompterView: View {
 #if DEBUG
             Button("Diagnostics", systemImage: "ladybug") { showsDiagnostics = true }
 #endif
+            Button(
+                settings.mirrorsPrompt ? "Use normal prompt view" : "Mirror prompt",
+                systemImage: "arrow.left.and.right"
+            ) {
+                settings.mirrorsPrompt.toggle()
+            }
+            .accessibilityValue(settings.mirrorsPrompt ? "On" : "Off")
+            .accessibilityHint("Flips only the scrolling script for a teleprompter mirror")
+
             Button(
                 model.isListening ? "Pause" : "Resume",
                 systemImage: model.isListening ? "pause.fill" : "play.fill"

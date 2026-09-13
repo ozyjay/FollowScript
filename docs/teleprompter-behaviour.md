@@ -4,7 +4,7 @@
 
 The prompt uses white rounded text on black, grouped into eight-token rows. The current token and next three tokens form the active phrase and are yellow with a subtle background; earlier text fades to 48% white. Users can disable highlighting and choose 28–72 point text, 4–20 point row spacing, and left or centred alignment.
 
-Top content padding places the first row at roughly 34% of screen height. Automatic `scrollTo` uses a 40% vertical anchor, inside the desired 35–45% reading zone. Bottom padding keeps future text readable near the end.
+Top content padding places the first row at roughly 34% of screen height. Automatic `scrollTo` uses a 40% vertical anchor, inside the desired 35–45% reading zone. Bottom padding keeps future text readable near the end. A persisted horizontal mirror option flips only the scrolling prompt for use with a beam-splitter teleprompter; controls remain in their normal orientation and the option can be changed from Settings or during prompting.
 
 ## Automatic following
 

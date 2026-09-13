@@ -35,6 +35,8 @@ xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -destination 'pl
 
 Record device, iOS, locale, date and observations rather than merely ticking boxes.
 
+Recorded observation: on 13 September 2026, the user confirmed that physical-iPhone live recognition worked after the PCM conversion fix and no longer triggered the signed-Int16 precondition. The device model, iOS version and locale were not recorded.
+
 - [ ] First microphone permission and speech permission prompts
 - [ ] Denial state and recovery after changing Settings
 - [ ] First start, including any iOS 26 language-asset installation
@@ -42,6 +44,7 @@ Record device, iOS, locale, date and observations rather than merely ticking box
 - [ ] Pause/resume and repeated recognition restart (retest the duplicate-tap crash fix)
 - [ ] Ten-minute continuous speech and long pauses
 - [ ] Partial-result latency and alignment responsiveness
+- [ ] Mirrored prompt readability through the teleprompter glass in portrait and landscape
 - [ ] Omissions, restarts, repeated passages and an intentional paragraph skip
 - [ ] Manual scrolling, delayed follow return and explicit return control
 - [ ] Portrait/landscape rotation during recognition

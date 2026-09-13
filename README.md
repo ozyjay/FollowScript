@@ -20,7 +20,7 @@ xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -configuration D
 
 ## MVP
 
-- Persistent single-script editor and persistent font, spacing, alignment and highlighting settings
+- Persistent single-script editor and persistent font, spacing, alignment, highlighting and horizontal-mirror settings
 - Portrait/landscape teleprompter with an active four-word phrase and a 40% reading zone
 - Speech-driven, thresholded scrolling; no timer-based movement
 - Manual scrolling with a six-second auto-follow pause and explicit return control
@@ -68,6 +68,6 @@ The current script and settings are stored in `UserDefaults`. Audio buffers are 
 
 ## Known limitations and roadmap
 
-The corrected pause/resume lifecycle and SpeechAnalyzer PCM conversion need physical-iPhone retesting after device traces exposed duplicate-tap and signed-Int16 precondition failures. Live recognition, interruptions, long sessions, offline behaviour and thermal use also require physical-iPhone verification. Alignment is word based and does not use phonetic similarity, semantic paraphrase matching or language-specific contraction expansion. Teleprompter rows are grouped in eight-token blocks, so very large fonts scroll at row granularity. There is no script library, import pipeline, remote control, recording or cloud sync.
+The corrected pause/resume lifecycle needs further physical-iPhone retesting after a device trace exposed a duplicate-tap failure. The SpeechAnalyzer PCM conversion has since been confirmed to avoid the signed-Int16 precondition failure on a physical iPhone. Interruptions, long sessions, offline behaviour and thermal use also require physical-iPhone verification. Alignment is word based and does not use phonetic similarity, semantic paraphrase matching or language-specific contraction expansion. Teleprompter rows are grouped in eight-token blocks, so very large fonts scroll at row granularity. There is no script library, import pipeline, remote control, recording or cloud sync.
 
 Useful next work is physical-device tuning, mock-driven view-model integration tests, VoiceOver/Dynamic Type UI testing, richer interruption recovery, and evidence-led alignment tuning from real recognition traces.

@@ -27,6 +27,8 @@ struct SettingsView: View {
                     }
 
                     Toggle("Highlight active phrase", isOn: $model.settings.highlightsActivePhrase)
+
+                    Toggle("Mirror prompt horizontally", isOn: $model.settings.mirrorsPrompt)
                 }
             }
             .navigationTitle("Settings")

@@ -38,7 +38,7 @@ struct ScriptEditorView: View {
             .fullScreenCover(isPresented: $model.presentsTeleprompter) {
                 TeleprompterView(
                     scriptText: model.scriptText,
-                    settings: model.settings,
+                    settings: $model.settings,
                     onExit: { model.presentsTeleprompter = false }
                 )
             }
