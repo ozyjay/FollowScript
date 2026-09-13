@@ -13,6 +13,7 @@ final class FollowScriptSettingsTests: XCTestCase {
         XCTAssertEqual(settings.lineSpacing, 10)
         XCTAssertEqual(settings.textAlignment, .centre)
         XCTAssertFalse(settings.highlightsActivePhrase)
+        XCTAssertTrue(settings.centresHighlightedText)
         XCTAssertFalse(settings.mirrorsPrompt)
         XCTAssertFalse(settings.flipsPromptVertically)
         XCTAssertFalse(settings.keepsDisplayAwake)
@@ -23,6 +24,7 @@ final class FollowScriptSettingsTests: XCTestCase {
         settings.mirrorsPrompt = true
         settings.flipsPromptVertically = true
         settings.keepsDisplayAwake = true
+        settings.centresHighlightedText = false
 
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(FollowScriptSettings.self, from: data)
@@ -30,5 +32,6 @@ final class FollowScriptSettingsTests: XCTestCase {
         XCTAssertTrue(decoded.mirrorsPrompt)
         XCTAssertTrue(decoded.flipsPromptVertically)
         XCTAssertTrue(decoded.keepsDisplayAwake)
+        XCTAssertFalse(decoded.centresHighlightedText)
     }
 }

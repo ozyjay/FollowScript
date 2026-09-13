@@ -13,6 +13,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
     var lineSpacing: Double = 12
     var textAlignment: TextAlignmentOption = .leading
     var highlightsActivePhrase = true
+    var centresHighlightedText = true
     var mirrorsPrompt = false
     var flipsPromptVertically = false
     var keepsDisplayAwake = false
@@ -22,6 +23,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         case lineSpacing
         case textAlignment
         case highlightsActivePhrase
+        case centresHighlightedText
         case mirrorsPrompt
         case flipsPromptVertically
         case keepsDisplayAwake
@@ -35,6 +37,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         lineSpacing = try container.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? 12
         textAlignment = try container.decodeIfPresent(TextAlignmentOption.self, forKey: .textAlignment) ?? .leading
         highlightsActivePhrase = try container.decodeIfPresent(Bool.self, forKey: .highlightsActivePhrase) ?? true
+        centresHighlightedText = try container.decodeIfPresent(Bool.self, forKey: .centresHighlightedText) ?? true
         mirrorsPrompt = try container.decodeIfPresent(Bool.self, forKey: .mirrorsPrompt) ?? false
         flipsPromptVertically = try container.decodeIfPresent(Bool.self, forKey: .flipsPromptVertically) ?? false
         keepsDisplayAwake = try container.decodeIfPresent(Bool.self, forKey: .keepsDisplayAwake) ?? false

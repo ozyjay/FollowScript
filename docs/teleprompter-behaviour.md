@@ -2,7 +2,7 @@
 
 ## Reading and highlighting
 
-The prompt uses white rounded text on black, grouped into eight-token rows. The current token is yellow with a subtle background; its row is always centred in the reading area, while the following words remain white and visible as look-ahead text. Earlier text fades to 48% white. Users can disable highlighting and choose 28–72 point text, 4–20 point row spacing, and left or centred alignment for the surrounding rows.
+The prompt uses white rounded text on black, grouped into eight-token rows. The current token is yellow with a subtle background, while the following words remain white and visible as look-ahead text. Earlier text fades to 48% white. Users can choose whether the row containing the highlighted word is centred; when that option is off, it follows the general left or centred text-alignment preference. Users can also disable highlighting and choose 28–72 point text and 4–20 point row spacing.
 
 Top content padding places the first row at roughly 34% of screen height. Automatic `scrollTo` uses a 40% vertical anchor, inside the desired 35–45% reading zone. Bottom padding keeps future text readable near the end. Independent, persisted horizontal-mirror and vertical-flip options transform only the scrolling prompt for different beam-splitter teleprompter arrangements. They can be combined, while controls remain in their normal orientation. Both options can be changed from Settings or during prompting.
 

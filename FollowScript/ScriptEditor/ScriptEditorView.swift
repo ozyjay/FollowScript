@@ -40,7 +40,7 @@ struct ScriptEditorView: View {
                     .disabled(isImporting)
                     .accessibilityHint("Choose a document from Files to replace the current script")
 
-                    Button("Presentation settings", systemImage: "textformat") {
+                    Button("Presentation settings", systemImage: "slider.horizontal.3") {
                         model.presentsSettings = true
                     }
                 }

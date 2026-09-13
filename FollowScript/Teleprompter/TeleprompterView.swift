@@ -178,15 +178,17 @@ struct TeleprompterView: View {
     private var textAlignment: TextAlignment { settings.textAlignment == .centre ? .center : .leading }
 
     private func alignment(for row: PromptRow) -> Alignment {
-        isHighlighted(row) ? .center : frameAlignment
+        shouldCentreHighlightedText(in: row) ? .center : frameAlignment
     }
 
     private func textAlignment(for row: PromptRow) -> TextAlignment {
-        isHighlighted(row) ? .center : textAlignment
+        shouldCentreHighlightedText(in: row) ? .center : textAlignment
     }
 
-    private func isHighlighted(_ row: PromptRow) -> Bool {
-        settings.highlightsActivePhrase && row.containsToken(model.currentTokenIndex)
+    private func shouldCentreHighlightedText(in row: PromptRow) -> Bool {
+        settings.highlightsActivePhrase
+            && settings.centresHighlightedText
+            && row.containsToken(model.currentTokenIndex)
     }
 
     private var errorBinding: Binding<Bool> {
