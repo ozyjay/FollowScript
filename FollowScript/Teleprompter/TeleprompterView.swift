@@ -159,10 +159,9 @@ struct TeleprompterView: View {
 
     private func rowText(_ row: PromptRow) -> AttributedString {
         var result = AttributedString()
-        let active = model.currentTokenIndex.map { $0...min($0 + 3, model.script.tokens.count - 1) }
         for token in row.tokens {
             var piece = AttributedString(token.displayText)
-            if settings.highlightsActivePhrase, active?.contains(token.index) == true {
+            if settings.highlightsActivePhrase, token.index == model.currentTokenIndex {
                 piece.foregroundColor = .yellow
                 piece.backgroundColor = Color.yellow.opacity(0.14)
             } else if let current = model.currentTokenIndex, token.index < current {
@@ -187,7 +186,7 @@ struct TeleprompterView: View {
     }
 
     private func isHighlighted(_ row: PromptRow) -> Bool {
-        settings.highlightsActivePhrase && row.containsActiveToken(model.currentTokenIndex)
+        settings.highlightsActivePhrase && row.containsToken(model.currentTokenIndex)
     }
 
     private var errorBinding: Binding<Bool> {
@@ -223,9 +222,8 @@ private struct PromptRow: Identifiable {
     let tokens: [ScriptToken]
     var plainText: String { tokens.map(\.displayText).joined() }
 
-    func containsActiveToken(_ currentTokenIndex: Int?) -> Bool {
-        guard let currentTokenIndex else { return false }
-        let activeRange = currentTokenIndex...(currentTokenIndex + 3)
-        return tokens.contains { activeRange.contains($0.index) }
+    func containsToken(_ tokenIndex: Int?) -> Bool {
+        guard let tokenIndex else { return false }
+        return tokens.contains { $0.index == tokenIndex }
     }
 }
