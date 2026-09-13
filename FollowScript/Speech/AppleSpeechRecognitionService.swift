@@ -202,9 +202,21 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
             try session.setActive(true, options: .notifyOthersOnDeactivation)
 
             let inputNode = audioEngine.inputNode
-            let format = inputNode.outputFormat(forBus: 0)
-            guard format.sampleRate > 0 else { throw SpeechRecognitionError.audioInputUnavailable }
-            try await analyzer.prepareToAnalyze(in: format)
+            let microphoneFormat = inputNode.outputFormat(forBus: 0)
+            guard microphoneFormat.sampleRate > 0 else {
+                throw SpeechRecognitionError.audioInputUnavailable
+            }
+            guard let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(
+                compatibleWith: [transcriber],
+                considering: microphoneFormat
+            ), analyzerFormat.commonFormat == .pcmFormatInt16 else {
+                throw SpeechRecognitionError.audioConversionFailed
+            }
+            let audioConverter = try SpeechAudioBufferConverter(
+                inputFormat: microphoneFormat,
+                outputFormat: analyzerFormat
+            )
+            try await analyzer.prepareToAnalyze(in: analyzerFormat)
             try ensureCurrent(generation)
 
             let (inputStream, inputContinuation) = AsyncStream<AnalyzerInput>.makeStream()
@@ -212,9 +224,14 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
             let (outputStream, outputContinuation) = AsyncThrowingStream<SpeechRecognitionUpdate, Error>.makeStream()
             self.outputContinuation = outputContinuation
 
-            inputNode.installTap(onBus: 0, bufferSize: 1_024, format: format) { buffer, time in
-                let timestamp = CMTime(value: time.sampleTime, timescale: CMTimeScale(format.sampleRate.rounded()))
-                inputContinuation.yield(AnalyzerInput(buffer: buffer, bufferStartTime: timestamp))
+            inputNode.installTap(onBus: 0, bufferSize: 1_024, format: microphoneFormat) { buffer, _ in
+                do {
+                    let convertedBuffer = try audioConverter.convert(buffer)
+                    inputContinuation.yield(AnalyzerInput(buffer: convertedBuffer))
+                } catch {
+                    inputContinuation.finish()
+                    outputContinuation.finish(throwing: error)
+                }
             }
             tapInstalled = true
             audioEngine.prepare()

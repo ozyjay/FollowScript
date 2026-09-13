@@ -10,7 +10,7 @@ swift test
 
 It compiles only `Models` and `Alignment`, then runs XCTest on macOS. This is the fastest alignment regression gate and needs no microphone, simulator or network.
 
-The Xcode project contains `FollowScriptTests`, including the same core tests, mock recognition stream tests and a rapid pause/resume lifecycle regression. That regression holds cleanup open for 100 milliseconds and verifies that the replacement session cannot start concurrently. Build without signing:
+The Xcode project contains `FollowScriptTests`, including the same core tests, mock recognition stream tests, a rapid pause/resume lifecycle regression and an audio-format regression. The lifecycle test holds cleanup open for 100 milliseconds and verifies that the replacement session cannot start concurrently. The conversion test repeatedly transforms 48 kHz Float32 microphone-style buffers into non-empty 16 kHz signed Int16 buffers. Build without signing:
 
 ```sh
 xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -configuration Debug -sdk iphonesimulator -derivedDataPath /tmp/FollowScriptDerivedData CODE_SIGNING_ALLOWED=NO build
@@ -38,6 +38,7 @@ Record device, iOS, locale, date and observations rather than merely ticking box
 - [ ] First microphone permission and speech permission prompts
 - [ ] Denial state and recovery after changing Settings
 - [ ] First start, including any iOS 26 language-asset installation
+- [ ] Confirm iOS 26 live input no longer triggers the signed-Int16 precondition
 - [ ] Pause/resume and repeated recognition restart (retest the duplicate-tap crash fix)
 - [ ] Ten-minute continuous speech and long pauses
 - [ ] Partial-result latency and alignment responsiveness

@@ -19,6 +19,7 @@ enum SpeechRecognitionError: LocalizedError, Equatable {
     case unavailable
     case onDeviceRecognitionUnavailable
     case audioInputUnavailable
+    case audioConversionFailed
     case interrupted
 
     var errorDescription: String? {
@@ -31,6 +32,8 @@ enum SpeechRecognitionError: LocalizedError, Equatable {
             "On-device speech recognition is not available for the selected language."
         case .audioInputUnavailable:
             "FollowScript could not access the microphone."
+        case .audioConversionFailed:
+            "FollowScript could not prepare the microphone audio for speech recognition."
         case .interrupted:
             "Speech recognition was interrupted. You can resume when ready."
         }
