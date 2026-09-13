@@ -20,7 +20,8 @@ xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -configuration D
 
 ## MVP
 
-- Persistent single-script editor and persistent font, spacing, alignment, highlighting and horizontal-mirror settings
+- Persistent single-script editor and persistent font, spacing, alignment, highlighting, horizontal-mirror and vertical-flip settings
+- Files import for DOCX, ODT, Markdown, plain text, RTF and HTML scripts
 - Portrait/landscape teleprompter with an active four-word phrase and a 40% reading zone
 - Speech-driven, thresholded scrolling; no timer-based movement
 - Manual scrolling with a six-second auto-follow pause and explicit return control
@@ -46,6 +47,8 @@ Recognition text is normalised and compared with candidate windows using edit si
 
 Apple Speech is isolated behind `SpeechRecognitionService`. The app neither records audio to disk nor sends scripts to a service of its own. Speech behaviour remains subject to Apple framework, language-model and OS availability. See [speech-recognition.md](docs/speech-recognition.md) and [privacy.md](docs/privacy.md).
 
+The editor can replace its script with text imported through the system Files picker. See [script-import.md](docs/script-import.md) for supported formats and conversion limits.
+
 ## Tests
 
 Run the portable core suite:
@@ -68,6 +71,6 @@ The current script and settings are stored in `UserDefaults`. Audio buffers are 
 
 ## Known limitations and roadmap
 
-The corrected pause/resume lifecycle needs further physical-iPhone retesting after a device trace exposed a duplicate-tap failure. The SpeechAnalyzer PCM conversion has since been confirmed to avoid the signed-Int16 precondition failure on a physical iPhone. Interruptions, long sessions, offline behaviour and thermal use also require physical-iPhone verification. Alignment is word based and does not use phonetic similarity, semantic paraphrase matching or language-specific contraction expansion. Teleprompter rows are grouped in eight-token blocks, so very large fonts scroll at row granularity. There is no script library, import pipeline, remote control, recording or cloud sync.
+The corrected pause/resume lifecycle needs further physical-iPhone retesting after a device trace exposed a duplicate-tap failure. The SpeechAnalyzer PCM conversion has since been confirmed to avoid the signed-Int16 precondition failure on a physical iPhone. Interruptions, long sessions, offline behaviour and thermal use also require physical-iPhone verification. Alignment is word based and does not use phonetic similarity, semantic paraphrase matching or language-specific contraction expansion. Teleprompter rows are grouped in eight-token blocks, so very large fonts scroll at row granularity. Imported formatting, images, tables, notes and tracked changes are intentionally discarded. There is no script library, legacy `.doc` import, remote control, recording or cloud sync.
 
 Useful next work is physical-device tuning, mock-driven view-model integration tests, VoiceOver/Dynamic Type UI testing, richer interruption recovery, and evidence-led alignment tuning from real recognition traces.

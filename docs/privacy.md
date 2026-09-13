@@ -5,7 +5,7 @@ FollowScript requests microphone access and Apple speech-recognition authorisati
 ## Stored locally
 
 - The current script is stored in app `UserDefaults`.
-- Font size, line spacing, alignment and highlighting preference are stored in `UserDefaults`.
+- Font size, line spacing, alignment, highlighting and prompt-flip preferences are stored in `UserDefaults`.
 
 ## Not stored or added
 
@@ -13,6 +13,10 @@ FollowScript requests microphone access and Apple speech-recognition authorisati
 - Recognised speech is held in view-model memory for the active session and debug display; it is not intentionally persisted.
 - There are no accounts, analytics SDKs, advertising identifiers, backend services, external LLMs or third-party speech APIs.
 - FollowScript does not implement script upload, cloud synchronisation or application-managed network transmission.
+
+## Files import
+
+The system Files picker can provide a user-selected document from On My iPhone, iCloud Drive or an installed File Provider. FollowScript obtains security-scoped read access only while importing, releases it immediately afterwards, and does not retain a bookmark or copy of the source file. Extracted plain text replaces the current locally stored script only after user confirmation.
 
 ## Apple Speech processing
 

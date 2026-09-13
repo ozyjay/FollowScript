@@ -47,6 +47,7 @@ struct TeleprompterView: View {
                             proxy.scrollTo(rowID(containing: target), anchor: UnitPoint(x: 0.5, y: 0.40))
                         }
                     }
+                    .scaleEffect(x: 1, y: settings.flipsPromptVertically ? -1 : 1, anchor: .center)
                 }
             }
 
@@ -109,6 +110,15 @@ struct TeleprompterView: View {
             }
             .accessibilityValue(settings.mirrorsPrompt ? "On" : "Off")
             .accessibilityHint("Flips only the scrolling script for a teleprompter mirror")
+
+            Button(
+                settings.flipsPromptVertically ? "Use upright prompt" : "Flip prompt vertically",
+                systemImage: "arrow.up.and.down"
+            ) {
+                settings.flipsPromptVertically.toggle()
+            }
+            .accessibilityValue(settings.flipsPromptVertically ? "On" : "Off")
+            .accessibilityHint("Turns only the scrolling script upside down")
 
             Button(
                 model.isListening ? "Pause" : "Resume",

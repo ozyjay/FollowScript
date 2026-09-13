@@ -14,6 +14,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
     var textAlignment: TextAlignmentOption = .leading
     var highlightsActivePhrase = true
     var mirrorsPrompt = false
+    var flipsPromptVertically = false
 
     private enum CodingKeys: String, CodingKey {
         case fontSize
@@ -21,6 +22,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         case textAlignment
         case highlightsActivePhrase
         case mirrorsPrompt
+        case flipsPromptVertically
     }
 
     init() {}
@@ -32,5 +34,6 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         textAlignment = try container.decodeIfPresent(TextAlignmentOption.self, forKey: .textAlignment) ?? .leading
         highlightsActivePhrase = try container.decodeIfPresent(Bool.self, forKey: .highlightsActivePhrase) ?? true
         mirrorsPrompt = try container.decodeIfPresent(Bool.self, forKey: .mirrorsPrompt) ?? false
+        flipsPromptVertically = try container.decodeIfPresent(Bool.self, forKey: .flipsPromptVertically) ?? false
     }
 }

@@ -14,15 +14,18 @@ final class FollowScriptSettingsTests: XCTestCase {
         XCTAssertEqual(settings.textAlignment, .centre)
         XCTAssertFalse(settings.highlightsActivePhrase)
         XCTAssertFalse(settings.mirrorsPrompt)
+        XCTAssertFalse(settings.flipsPromptVertically)
     }
 
-    func testMirrorPreferenceRoundTripsThroughPersistenceEncoding() throws {
+    func testPromptFlipPreferencesRoundTripThroughPersistenceEncoding() throws {
         var settings = FollowScriptSettings()
         settings.mirrorsPrompt = true
+        settings.flipsPromptVertically = true
 
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(FollowScriptSettings.self, from: data)
 
         XCTAssertTrue(decoded.mirrorsPrompt)
+        XCTAssertTrue(decoded.flipsPromptVertically)
     }
 }

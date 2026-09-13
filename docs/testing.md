@@ -10,7 +10,7 @@ swift test
 
 It compiles only `Models` and `Alignment`, then runs XCTest on macOS. This is the fastest alignment regression gate and needs no microphone, simulator or network.
 
-The Xcode project contains `FollowScriptTests`, including the same core tests, mock recognition stream tests, a rapid pause/resume lifecycle regression and an audio-format regression. The lifecycle test holds cleanup open for 100 milliseconds and verifies that the replacement session cannot start concurrently. The conversion test repeatedly transforms 48 kHz Float32 microphone-style buffers into non-empty 16 kHz signed Int16 buffers. Build without signing:
+The Xcode project contains `FollowScriptTests`, including the same core tests, mock recognition stream tests, a rapid pause/resume lifecycle regression, audio-format regression and document-import fixtures. The lifecycle test holds cleanup open for 100 milliseconds and verifies that the replacement session cannot start concurrently. The conversion test repeatedly transforms 48 kHz Float32 microphone-style buffers into non-empty 16 kHz signed Int16 buffers. Import tests cover plain text, Markdown formatting removal, DEFLATE-compressed DOCX XML and stored ODT XML. Build without signing:
 
 ```sh
 xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -configuration Debug -sdk iphonesimulator -derivedDataPath /tmp/FollowScriptDerivedData CODE_SIGNING_ALLOWED=NO build
@@ -44,13 +44,14 @@ Recorded observation: on 13 September 2026, the user confirmed that physical-iPh
 - [ ] Pause/resume and repeated recognition restart (retest the duplicate-tap crash fix)
 - [ ] Ten-minute continuous speech and long pauses
 - [ ] Partial-result latency and alignment responsiveness
-- [ ] Mirrored prompt readability through the teleprompter glass in portrait and landscape
+- [ ] Horizontal, vertical and combined prompt-flip readability through the teleprompter glass in portrait and landscape
 - [ ] Omissions, restarts, repeated passages and an intentional paragraph skip
 - [ ] Manual scrolling, delayed follow return and explicit return control
 - [ ] Portrait/landscape rotation during recognition
 - [ ] Phone call/audio-session interruption and app background/foreground
 - [ ] Airplane/offline operation for the selected locale
 - [ ] Large prompt sizes, VoiceOver controls and contrast
+- [ ] Import representative DOCX, ODT, Markdown, RTF and Files-provider documents
 - [ ] Battery and thermal behaviour for a realistic presentation
 
 A device run exposed the former duplicate-tap crash, but the corrected lifecycle implementation has not yet been rerun on that device. Treat every unchecked item as unverified. Follow `.skills/testing/SKILL.md`; report exact commands and do not turn a build-only result into a test claim.
