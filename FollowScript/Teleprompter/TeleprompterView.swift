@@ -29,8 +29,8 @@ struct TeleprompterView: View {
                                 Text(rowText(row))
                                     .font(.system(size: settings.fontSize, weight: .regular, design: .rounded))
                                     .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity, alignment: frameAlignment)
-                                    .multilineTextAlignment(textAlignment)
+                                    .frame(maxWidth: .infinity, alignment: alignment(for: row))
+                                    .multilineTextAlignment(textAlignment(for: row))
                                     .id(row.id)
                                     .accessibilityLabel(row.plainText)
                             }
@@ -177,6 +177,19 @@ struct TeleprompterView: View {
     private var swiftUIAlignment: HorizontalAlignment { settings.textAlignment == .centre ? .center : .leading }
     private var frameAlignment: Alignment { settings.textAlignment == .centre ? .center : .leading }
     private var textAlignment: TextAlignment { settings.textAlignment == .centre ? .center : .leading }
+
+    private func alignment(for row: PromptRow) -> Alignment {
+        isHighlighted(row) ? .center : frameAlignment
+    }
+
+    private func textAlignment(for row: PromptRow) -> TextAlignment {
+        isHighlighted(row) ? .center : textAlignment
+    }
+
+    private func isHighlighted(_ row: PromptRow) -> Bool {
+        settings.highlightsActivePhrase && row.containsActiveToken(model.currentTokenIndex)
+    }
+
     private var errorBinding: Binding<Bool> {
         Binding(get: { model.errorMessage != nil }, set: { _ in })
     }
@@ -209,4 +222,10 @@ private struct PromptRow: Identifiable {
     let id: Int
     let tokens: [ScriptToken]
     var plainText: String { tokens.map(\.displayText).joined() }
+
+    func containsActiveToken(_ currentTokenIndex: Int?) -> Bool {
+        guard let currentTokenIndex else { return false }
+        let activeRange = currentTokenIndex...(currentTokenIndex + 3)
+        return tokens.contains { activeRange.contains($0.index) }
+    }
 }
