@@ -32,9 +32,15 @@ struct AudioInputDescriptor: Equatable, Sendable {
     let isExternal: Bool
 }
 
+struct MicrophoneGainState: Equatable, Sendable {
+    let isAdjustable: Bool
+    let value: Double
+}
+
 enum AudioInputEvent: Equatable, Sendable {
     case level(Double)
     case inputChanged(AudioInputDescriptor)
+    case gainChanged(MicrophoneGainState)
     case recordingFailed(String)
 }
 
@@ -70,6 +76,7 @@ protocol SpeechRecognitionService: AnyObject {
     func start() async throws -> AsyncThrowingStream<SpeechRecognitionUpdate, Error>
     func stop() async
     func audioInputEvents() -> AsyncStream<AudioInputEvent>
+    func setInputGain(_ value: Double) throws
     func startRecording() throws
     func stopRecording() throws -> URL?
 }

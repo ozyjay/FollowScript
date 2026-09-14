@@ -2,15 +2,44 @@ import Foundation
 import Combine
 
 enum MicrophoneLevelQuality: String, Equatable {
-    case quiet = "Too quiet"
+    case quiet = "Quiet"
     case good = "Good"
     case loud = "Too loud"
 
-    init(level: Double) {
-        if level < 0.22 { self = .quiet }
+    init(level: Double, quietThreshold: Double = 0.22) {
+        if level < quietThreshold { self = .quiet }
         else if level > 0.88 { self = .loud }
         else { self = .good }
     }
+}
+
+enum RecognitionActivity: String, Equatable {
+    case paused = "Paused"
+    case listening = "Listening"
+    case hearingSpeech = "Hearing speech"
+    case noWordsRecognised = "Speech heard, no words yet"
+}
+
+enum FollowingPresentationState: String, Equatable {
+    case paused = "Following paused"
+    case finding = "Finding your place"
+    case following = "Following"
+    case unsure = "Unsure — keep speaking"
+    case searching = "Searching ahead"
+}
+
+enum MicrophoneCheckPhase: Equatable {
+    case idle
+    case measuringRoom
+    case reading
+    case complete
+}
+
+struct MicrophoneCheckResult: Equatable {
+    let microphoneLevelOK: Bool
+    let recognitionOK: Bool
+    let alignmentOK: Bool
+    let guidance: String
 }
 
 @MainActor
@@ -37,9 +66,15 @@ final class TeleprompterViewModel: ObservableObject {
     @Published private(set) var isRecording = false
     @Published private(set) var latestRecordingURL: URL?
     @Published private(set) var recordingErrorMessage: String?
+    @Published private(set) var recognitionActivity: RecognitionActivity = .paused
+    @Published private(set) var microphoneGain = MicrophoneGainState(isAdjustable: false, value: 1)
+    @Published private(set) var microphoneCheckPhase: MicrophoneCheckPhase = .idle
+    @Published private(set) var microphoneCheckResult: MicrophoneCheckResult?
 
     private let service: any SpeechRecognitionService
     private let engine: ScriptAlignmentEngine
+    private let microphoneCheckRoomDuration: Duration
+    private let microphoneCheckReadingDuration: Duration
     private var recognitionTask: Task<Void, Never>?
     private var restartTask: Task<Void, Never>?
     private var followResumeTask: Task<Void, Never>?
@@ -48,12 +83,22 @@ final class TeleprompterViewModel: ObservableObject {
     private var pendingScrollDestination: Int?
     private var lastScrollTarget: Int?
     private var wantsRecognition = false
+    private var quietThreshold = 0.22
+    private var speechWithoutRecognitionStartedAt: Date?
+    private var lastRecognitionAt: Date?
+    private var microphoneCheckTask: Task<Void, Never>?
+    private var microphoneCheckLevels: [Double] = []
+    private var microphoneCheckPeak = 0.0
+    private var microphoneCheckInitialText = ""
+    private var microphoneCheckSawAlignment = false
 
     init(
         scriptText: String,
         ignoresSquareBracketedText: Bool = true,
         service: (any SpeechRecognitionService)? = nil,
-        engine: ScriptAlignmentEngine = ScriptAlignmentEngine()
+        engine: ScriptAlignmentEngine = ScriptAlignmentEngine(),
+        microphoneCheckRoomDuration: Duration = .seconds(2),
+        microphoneCheckReadingDuration: Duration = .seconds(8)
     ) {
         script = ScriptDocument(
             text: ScriptTextProcessor.prepare(
@@ -63,13 +108,29 @@ final class TeleprompterViewModel: ObservableObject {
         )
         self.service = service ?? SpeechServiceFactory.live()
         self.engine = engine
+        self.microphoneCheckRoomDuration = microphoneCheckRoomDuration
+        self.microphoneCheckReadingDuration = microphoneCheckReadingDuration
     }
 
     var currentTokenIndex: Int? { alignmentState.estimatedTokenIndex }
     var committedTokenIndex: Int? { alignmentState.committedTokenIndex }
     var confidence: Double { alignmentState.confidence }
     var trackingState: AlignmentTrackingState { alignmentState.trackingState }
-    var microphoneLevelQuality: MicrophoneLevelQuality { .init(level: audioLevel) }
+    var microphoneLevelQuality: MicrophoneLevelQuality { .init(level: audioLevel, quietThreshold: quietThreshold) }
+    var followingPresentationState: FollowingPresentationState {
+        guard isListening else { return .paused }
+        if alignmentState.committedTokenIndex == nil { return .finding }
+        switch trackingState {
+        case .tracking: return .following
+        case .uncertain: return .unsure
+        case .reacquiring: return .searching
+        }
+    }
+    var calibrationPrompt: String {
+        let start = alignmentState.committedTokenIndex ?? 0
+        let end = min(script.tokens.count, start + 10)
+        return script.tokens[start..<end].map(\.original).joined(separator: " ")
+    }
 
     func start() {
         wantsRecognition = true
@@ -90,6 +151,7 @@ final class TeleprompterViewModel: ObservableObject {
         wantsRecognition = false
         isListening = false
         audioLevel = 0
+        recognitionActivity = .paused
         restartTask?.cancel()
         restartTask = nil
         recognitionTask?.cancel()
@@ -121,6 +183,8 @@ final class TeleprompterViewModel: ObservableObject {
         scrollCatchUpTask = nil
         audioLevelTask?.cancel()
         audioLevelTask = nil
+        microphoneCheckTask?.cancel()
+        microphoneCheckTask = nil
     }
 
     func toggleRecording() {
@@ -141,6 +205,70 @@ final class TeleprompterViewModel: ObservableObject {
 
     func clearRecordingError() {
         recordingErrorMessage = nil
+    }
+
+    func setMicrophoneGain(_ value: Double) {
+        do {
+            try service.setInputGain(value)
+            microphoneGain = .init(isAdjustable: microphoneGain.isAdjustable, value: min(1, max(0, value)))
+        } catch {
+            audioInputWarning = "This microphone could not apply the requested gain."
+        }
+    }
+
+    func beginMicrophoneCheck() {
+        microphoneCheckTask?.cancel()
+        microphoneCheckLevels = []
+        microphoneCheckPeak = 0
+        microphoneCheckInitialText = recognisedText
+        microphoneCheckSawAlignment = false
+        microphoneCheckResult = nil
+        microphoneCheckPhase = .measuringRoom
+        let roomDuration = microphoneCheckRoomDuration
+        let readingDuration = microphoneCheckReadingDuration
+        microphoneCheckTask = Task { [weak self] in
+            try? await Task.sleep(for: roomDuration)
+            guard !Task.isCancelled, let self else { return }
+            self.microphoneCheckPhase = .reading
+            try? await Task.sleep(for: readingDuration)
+            guard !Task.isCancelled else { return }
+            self.finishMicrophoneCheck()
+        }
+    }
+
+    func cancelMicrophoneCheck() {
+        microphoneCheckTask?.cancel()
+        microphoneCheckTask = nil
+        microphoneCheckPhase = .idle
+    }
+
+    func finishMicrophoneCheck() {
+        microphoneCheckTask?.cancel()
+        microphoneCheckTask = nil
+        let roomLevel = microphoneCheckLevels.isEmpty
+            ? 0
+            : microphoneCheckLevels.reduce(0, +) / Double(microphoneCheckLevels.count)
+        quietThreshold = min(0.26, max(0.10, roomLevel + 0.08))
+        let microphoneOK = microphoneCheckPeak >= quietThreshold
+        let recognitionOK = recognisedText != microphoneCheckInitialText && !recognisedText.isEmpty
+        let alignmentOK = microphoneCheckSawAlignment
+        let guidance: String
+        if !microphoneOK {
+            guidance = "Move closer to the microphone or check the selected input."
+        } else if !recognitionOK {
+            guidance = "Audio is arriving, but no words were recognised. Reduce background noise and try again."
+        } else if !alignmentOK {
+            guidance = "Speech was recognised, but the phrase did not match this part of the script."
+        } else {
+            guidance = "Microphone, recognition and following are ready."
+        }
+        microphoneCheckResult = .init(
+            microphoneLevelOK: microphoneOK,
+            recognitionOK: recognitionOK,
+            alignmentOK: alignmentOK,
+            guidance: guidance
+        )
+        microphoneCheckPhase = .complete
     }
 
     func userDidScroll() {
@@ -234,7 +362,10 @@ final class TeleprompterViewModel: ObservableObject {
                 guard !Task.isCancelled else { break }
                 switch event {
                 case .level(let level):
-                    self?.audioLevel = level
+                    guard let self else { break }
+                    self.audioLevel = level
+                    self.consumeMicrophoneLevelForCheck(level)
+                    self.updateRecognitionActivity(for: level)
                 case .inputChanged(let input):
                     guard let self else { break }
                     let lostExternalInput = self.audioInput?.isExternal == true && !input.isExternal
@@ -242,6 +373,8 @@ final class TeleprompterViewModel: ObservableObject {
                     self.audioInputWarning = lostExternalInput
                         ? "External microphone disconnected. Now using \(input.name)."
                         : nil
+                case .gainChanged(let gain):
+                    self?.microphoneGain = gain
                 case .recordingFailed(let message):
                     self?.isRecording = false
                     self?.recordingErrorMessage = "The recording stopped because audio could not be saved: \(message)"
@@ -263,6 +396,9 @@ final class TeleprompterViewModel: ObservableObject {
 
     private func consume(_ update: SpeechRecognitionUpdate) {
         recognisedText = update.text
+        lastRecognitionAt = Date()
+        speechWithoutRecognitionStartedAt = nil
+        recognitionActivity = .hearingSpeech
         let observations = [AlignmentObservation(text: update.text, confidence: update.confidence)]
             + update.alternatives.map { AlignmentObservation(text: $0) }
         let result = engine.align(
@@ -276,9 +412,36 @@ final class TeleprompterViewModel: ObservableObject {
         matchedRange = result.matchedRange
         searchMode = result.searchMode
         candidateScore = result.candidateScore
+        if microphoneCheckPhase == .reading, result.matchedRange != nil {
+            microphoneCheckSawAlignment = true
+        }
 
         guard let tokenIndex = result.committedTokenIndex, !automaticFollowingSuspended else { return }
         requestScroll(towards: tokenIndex)
+    }
+
+    private func consumeMicrophoneLevelForCheck(_ level: Double) {
+        if microphoneCheckPhase == .measuringRoom {
+            microphoneCheckLevels.append(level)
+        } else if microphoneCheckPhase == .reading {
+            microphoneCheckPeak = max(microphoneCheckPeak, level)
+        }
+    }
+
+    private func updateRecognitionActivity(for level: Double) {
+        guard isListening else { recognitionActivity = .paused; return }
+        guard level >= quietThreshold else {
+            speechWithoutRecognitionStartedAt = nil
+            recognitionActivity = .listening
+            return
+        }
+        if lastRecognitionAt.map({ Date().timeIntervalSince($0) < 1.5 }) == true {
+            recognitionActivity = .hearingSpeech
+            return
+        }
+        let started = speechWithoutRecognitionStartedAt ?? Date()
+        speechWithoutRecognitionStartedAt = started
+        recognitionActivity = Date().timeIntervalSince(started) >= 1.5 ? .noWordsRecognised : .hearingSpeech
     }
 
     private func requestScroll(towards tokenIndex: Int) {

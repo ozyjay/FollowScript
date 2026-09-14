@@ -118,6 +118,64 @@ final class MockSpeechRecognitionServiceTests: XCTestCase {
         XCTAssertEqual(MicrophoneLevelQuality(level: 0.95), .loud)
     }
 
+    func testSupportedMicrophoneGainCanBeChanged() async throws {
+        let service = MockSpeechRecognitionService()
+        let model = TeleprompterViewModel(scriptText: "A short script.", service: service)
+        model.start()
+        try await Task.sleep(for: .milliseconds(30))
+        service.sendGain(isAdjustable: true, value: 0.4)
+        try await Task.sleep(for: .milliseconds(30))
+
+        model.setMicrophoneGain(0.7)
+
+        XCTAssertTrue(model.microphoneGain.isAdjustable)
+        XCTAssertEqual(model.microphoneGain.value, 0.7, accuracy: 0.001)
+        model.stop()
+    }
+
+    func testTrackingPresentationDistinguishesRecognitionAndFollowing() async throws {
+        let service = MockSpeechRecognitionService()
+        let model = TeleprompterViewModel(scriptText: "Rare cobalt telescope marks this place.", service: service)
+        model.start()
+        try await Task.sleep(for: .milliseconds(30))
+        service.sendAudioLevel(0.5)
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(model.recognitionActivity, .hearingSpeech)
+        XCTAssertEqual(model.followingPresentationState, .finding)
+
+        service.send("rare cobalt telescope marks this place", isFinal: true)
+        try await Task.sleep(for: .milliseconds(30))
+        XCTAssertEqual(model.followingPresentationState, .following)
+        model.stop()
+    }
+
+    func testMicrophoneCheckSeparatesAudioRecognitionAndAlignment() async throws {
+        let service = MockSpeechRecognitionService()
+        let model = TeleprompterViewModel(
+            scriptText: "Rare cobalt telescope marks this place.",
+            service: service,
+            microphoneCheckRoomDuration: .milliseconds(10),
+            microphoneCheckReadingDuration: .seconds(1)
+        )
+        model.start()
+        try await Task.sleep(for: .milliseconds(30))
+        model.beginMicrophoneCheck()
+        service.sendAudioLevel(0.05)
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(model.microphoneCheckPhase, .reading)
+
+        service.sendAudioLevel(0.6)
+        service.send("rare cobalt telescope marks this place", isFinal: true)
+        try await Task.sleep(for: .milliseconds(30))
+        model.finishMicrophoneCheck()
+
+        XCTAssertEqual(model.microphoneCheckResult?.microphoneLevelOK, true)
+        XCTAssertEqual(model.microphoneCheckResult?.recognitionOK, true)
+        XCTAssertEqual(model.microphoneCheckResult?.alignmentOK, true)
+        XCTAssertEqual(model.microphoneCheckPhase, .complete)
+        model.stop()
+    }
+
     func testUserCanMoveFollowingBackwards() async throws {
         let service = MockSpeechRecognitionService()
         let model = TeleprompterViewModel(
@@ -199,6 +257,7 @@ private final class SlowStoppingSpeechRecognitionService: SpeechRecognitionServi
     }
 
     func audioInputEvents() -> AsyncStream<AudioInputEvent> { eventStream }
+    func setInputGain(_ value: Double) throws {}
     func startRecording() throws {}
     func stopRecording() throws -> URL? { nil }
 }

@@ -44,6 +44,9 @@ Recorded observation: on 13 September 2026, the user confirmed that physical-iPh
 - [ ] Pause/resume and repeated recognition restart (retest the duplicate-tap crash fix)
 - [ ] Ten-minute continuous speech and long pauses
 - [ ] Partial-result latency and alignment responsiveness
+- [ ] Tracking pill distinguishes quiet input, heard speech, recognition and reacquisition accurately
+- [ ] Microphone check measures ambient level, recognises its script phrase and gives useful guidance
+- [ ] Gain slider appears only on a route that reports adjustable input gain
 - [ ] Tentative highlighting reacts before committed scrolling without visible false flashes
 - [ ] Distant reacquisition requires a distinctive phrase and ignores repeated/common wording
 - [ ] iOS 26 time-indexed ranges and alternatives are populated for the selected locale

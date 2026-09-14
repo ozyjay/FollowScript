@@ -41,6 +41,14 @@ final class MicrophoneCaptureMonitor: @unchecked Sendable {
         }
     }
 
+    func reportGain(_ gain: MicrophoneGainState) {
+        lock.withLock {
+            for continuation in eventContinuations.values {
+                continuation.yield(.gainChanged(gain))
+            }
+        }
+    }
+
     func startRecording(format: AVAudioFormat) throws {
         let folder = try Self.recordingsFolder()
         let formatter = DateFormatter()

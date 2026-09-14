@@ -37,6 +37,16 @@ private func currentAudioInput(in session: AVAudioSession) -> AudioInputDescript
     )
 }
 
+private func currentMicrophoneGain(in session: AVAudioSession) -> MicrophoneGainState {
+    MicrophoneGainState(isAdjustable: session.isInputGainSettable, value: Double(session.inputGain))
+}
+
+private func setCurrentMicrophoneGain(_ value: Double) throws {
+    let session = AVAudioSession.sharedInstance()
+    guard session.isInputGainSettable else { return }
+    try session.setInputGain(Float(min(1, max(0, value))))
+}
+
 @MainActor
 private final class LegacySpeechRecognitionService: SpeechRecognitionService {
     private let locale: Locale
@@ -145,6 +155,11 @@ private final class LegacySpeechRecognitionService: SpeechRecognitionService {
 
     func audioInputEvents() -> AsyncStream<AudioInputEvent> { captureMonitor.events() }
 
+    func setInputGain(_ value: Double) throws {
+        try setCurrentMicrophoneGain(value)
+        captureMonitor.reportGain(currentMicrophoneGain(in: .sharedInstance()))
+    }
+
     func startRecording() throws {
         guard let microphoneFormat else { throw AudioRecordingError.microphoneNotRunning }
         try captureMonitor.startRecording(format: microphoneFormat)
@@ -156,6 +171,7 @@ private final class LegacySpeechRecognitionService: SpeechRecognitionService {
         if let input = currentAudioInput(in: .sharedInstance()) {
             captureMonitor.reportInput(input)
         }
+        captureMonitor.reportGain(currentMicrophoneGain(in: .sharedInstance()))
     }
 
     private func monitorAudioRouteChanges() {
@@ -343,6 +359,11 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
 
     func audioInputEvents() -> AsyncStream<AudioInputEvent> { captureMonitor.events() }
 
+    func setInputGain(_ value: Double) throws {
+        try setCurrentMicrophoneGain(value)
+        captureMonitor.reportGain(currentMicrophoneGain(in: .sharedInstance()))
+    }
+
     func startRecording() throws {
         guard let microphoneFormat else { throw AudioRecordingError.microphoneNotRunning }
         try captureMonitor.startRecording(format: microphoneFormat)
@@ -354,6 +375,7 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
         if let input = currentAudioInput(in: .sharedInstance()) {
             captureMonitor.reportInput(input)
         }
+        captureMonitor.reportGain(currentMicrophoneGain(in: .sharedInstance()))
     }
 
     private func monitorAudioRouteChanges() {

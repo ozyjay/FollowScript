@@ -4,6 +4,7 @@ import UIKit
 struct TeleprompterView: View {
     @StateObject private var model: TeleprompterViewModel
     @State private var showsDiagnostics = false
+    @State private var showsMicrophoneCheck = false
     @State private var pausedByUser = false
     @State private var previousIdleTimerDisabled: Bool?
     @State private var requestedPromptRow: PromptRow?
@@ -139,6 +140,10 @@ struct TeleprompterView: View {
                 .presentationDetents([.medium, .large])
         }
 #endif
+        .sheet(isPresented: $showsMicrophoneCheck, onDismiss: model.cancelMicrophoneCheck) {
+            MicrophoneCheckView(model: model)
+                .presentationDetents([.medium, .large])
+        }
     }
 
     private var controls: some View {
@@ -197,7 +202,16 @@ struct TeleprompterView: View {
                         model.resume()
                     }
                 }
+                Button("Check microphone and following", systemImage: "waveform.badge.magnifyingglass") {
+                    showsMicrophoneCheck = true
+                }
+                .disabled(!model.isListening)
             }
+
+            TrackingStatusView(
+                recognition: model.recognitionActivity,
+                following: model.followingPresentationState
+            )
 
             MicrophoneLevelView(
                 level: model.audioLevel,
@@ -306,6 +320,116 @@ struct TeleprompterView: View {
         guard let previousIdleTimerDisabled else { return }
         UIApplication.shared.isIdleTimerDisabled = previousIdleTimerDisabled
         self.previousIdleTimerDisabled = nil
+    }
+}
+
+private struct TrackingStatusView: View {
+    let recognition: RecognitionActivity
+    let following: FollowingPresentationState
+
+    private var colour: Color {
+        if recognition == .noWordsRecognised { return .orange }
+        switch following {
+        case .following: return .green
+        case .unsure: return .orange
+        case .finding, .searching: return .blue
+        case .paused: return .secondary
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: following == .following ? "checkmark.circle.fill" : "scope")
+            Text(following.rawValue).font(.caption.weight(.semibold))
+            Text("•").foregroundStyle(.secondary)
+            Text(recognition.rawValue).font(.caption)
+        }
+        .foregroundStyle(colour)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 32)
+        .background(colour.opacity(0.16), in: Capsule())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Tracking status")
+        .accessibilityValue("\(following.rawValue), \(recognition.rawValue)")
+    }
+}
+
+private struct MicrophoneCheckView: View {
+    @ObservedObject var model: TeleprompterViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 20) {
+                switch model.microphoneCheckPhase {
+                case .idle, .measuringRoom:
+                    heading("Stay quiet for a moment", symbol: "ear")
+                    Text("FollowScript is measuring the room level. No audio is saved.")
+                        .foregroundStyle(.secondary)
+                    ProgressView()
+                case .reading:
+                    heading("Read this aloud", symbol: "text.bubble")
+                    Text(model.calibrationPrompt)
+                        .font(.title3.weight(.medium))
+                        .accessibilityLabel("Calibration phrase: \(model.calibrationPrompt)")
+                    statusRows
+                    Button("Finish check") { model.finishMicrophoneCheck() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                case .complete:
+                    heading("Check complete", symbol: "checkmark.circle")
+                    statusRows
+                    Text(model.microphoneCheckResult?.guidance ?? "Check complete.")
+                        .font(.headline)
+                    Button("Done") { dismiss() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                }
+
+                if model.microphoneGain.isAdjustable {
+                    Divider()
+                    VStack(alignment: .leading) {
+                        Text("Microphone gain").font(.headline)
+                        Slider(
+                            value: Binding(
+                                get: { model.microphoneGain.value },
+                                set: { model.setMicrophoneGain($0) }
+                            ),
+                            in: 0...1
+                        )
+                        Text("Available for this microphone. Higher gain also increases room noise.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+            }
+            .padding(24)
+            .navigationTitle("Microphone check")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+        .onAppear { model.beginMicrophoneCheck() }
+    }
+
+    private func heading(_ title: String, symbol: String) -> some View {
+        Label(title, systemImage: symbol).font(.title2.bold())
+    }
+
+    private var statusRows: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            checkRow("Microphone", passed: model.microphoneCheckResult?.microphoneLevelOK)
+            checkRow("Speech recognition", passed: model.microphoneCheckResult?.recognitionOK)
+            checkRow("Script following", passed: model.microphoneCheckResult?.alignmentOK)
+        }
+    }
+
+    private func checkRow(_ title: String, passed: Bool?) -> some View {
+        Label(title, systemImage: passed.map { $0 ? "checkmark.circle.fill" : "exclamationmark.circle.fill" } ?? "circle.dotted")
+            .foregroundStyle(passed.map { $0 ? Color.green : Color.orange } ?? .secondary)
     }
 }
 

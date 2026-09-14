@@ -6,6 +6,7 @@ final class MockSpeechRecognitionService: SpeechRecognitionService {
     private var eventContinuation: AsyncStream<AudioInputEvent>.Continuation?
     private(set) var isRecording = false
     var recordingURL: URL?
+    private(set) var gain = MicrophoneGainState(isAdjustable: false, value: 1)
 
     func requestAuthorisation() async -> SpeechAuthorisationStatus { .authorised }
 
@@ -24,6 +25,17 @@ final class MockSpeechRecognitionService: SpeechRecognitionService {
         let (stream, continuation) = AsyncStream<AudioInputEvent>.makeStream(bufferingPolicy: .bufferingNewest(1))
         eventContinuation = continuation
         return stream
+    }
+
+    func setInputGain(_ value: Double) throws {
+        guard gain.isAdjustable else { return }
+        gain = .init(isAdjustable: true, value: min(1, max(0, value)))
+        eventContinuation?.yield(.gainChanged(gain))
+    }
+
+    func sendGain(isAdjustable: Bool, value: Double) {
+        gain = .init(isAdjustable: isAdjustable, value: value)
+        eventContinuation?.yield(.gainChanged(gain))
     }
 
     func startRecording() throws { isRecording = true }
