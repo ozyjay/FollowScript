@@ -6,7 +6,7 @@
 
 Tokenisation treats punctuation as a word boundary and excludes it from matching. This applies to ASCII and Unicode punctuation, including hyphens, dashes, colons, slashes, brackets and sentence marks. Apostrophes may remain inside a source token so contractions retain one source range, but are removed from its normalised matching form. Original punctuation remains in the display text and source mapping.
 
-`estimatedTokenIndex` is the responsive estimate used for highlighting. `committedTokenIndex` is the stable monotonic anchor used for scrolling. An estimate requires confidence of `0.46`. A local commit requires `0.64`; global reacquisition requires `0.66`, while a distant jump requires `0.74`, at least three recognised tokens and distinctive evidence. Partial estimates retain the existing one-token lag; final results use the matched endpoint.
+`estimatedTokenIndex` is the responsive estimate used for highlighting. `committedTokenIndex` is the stable monotonic anchor used for scrolling. An estimate requires confidence of `0.46`. A local commit requires `0.64`; global reacquisition requires `0.66`, while a distant jump requires `0.74`, at least three recognised tokens and distinctive evidence. Confident multi-word partial and final results use the matched endpoint, avoiding an artificial one-word delay during faster delivery. A single-word partial retains a one-token lag so an ambiguous word cannot prematurely pull an established position forward.
 
 ## Evidence score
 

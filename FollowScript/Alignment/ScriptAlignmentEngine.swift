@@ -13,7 +13,7 @@ struct ScriptAlignmentEngine: Sendable {
         var distinctiveJumpThreshold = 0.74
         var updatesBeforeGlobalSearch = 2
         var minimumInitialPartialTokens = 2
-        var partialResultTokenLag = 1
+        var singleTokenPartialResultLag = 1
         var localAdvanceSlack = 4
         var beamWidth = 7
         var idfStrength = 0.28
@@ -96,13 +96,15 @@ struct ScriptAlignmentEngine: Sendable {
         } ?? false
         let estimateAllowed = accepted && !exceedsLocalAdvanceBudget
             && (!largeJump || (useGlobalSearch && jumpHasEvidence))
-        let estimatedIndex = estimateAllowed ? lagged(best.end, isFinal: isFinal) : previous.estimatedTokenIndex
+        let estimatedIndex = estimateAllowed
+            ? lagged(best.end, recognisedTokenCount: recognised.count, isFinal: isFinal)
+            : previous.estimatedTokenIndex
         let mayMove = accepted && confidence >= (useGlobalSearch ? threshold : configuration.commitThreshold)
             && !exceedsLocalAdvanceBudget
             && (!largeJump || (useGlobalSearch && jumpHasEvidence))
         let selectedIndex: Int?
         if mayMove {
-            let laggedIndex = lagged(best.end, isFinal: isFinal)
+            let laggedIndex = lagged(best.end, recognisedTokenCount: recognised.count, isFinal: isFinal)
             selectedIndex = max(previous.tokenIndex ?? laggedIndex, laggedIndex)
         } else {
             selectedIndex = previous.tokenIndex
@@ -243,7 +245,10 @@ struct ScriptAlignmentEngine: Sendable {
         return max(0, 0.96 - penalty)
     }
 
-    private func lagged(_ index: Int, isFinal: Bool) -> Int { max(0, index - (isFinal ? 0 : configuration.partialResultTokenLag)) }
+    private func lagged(_ index: Int, recognisedTokenCount: Int, isFinal: Bool) -> Int {
+        let lag = !isFinal && recognisedTokenCount == 1 ? configuration.singleTokenPartialResultLag : 0
+        return max(0, index - lag)
+    }
     private func elapsed(current: TimeInterval?, previous: TimeInterval?) -> Double? {
         guard let current, let previous, current >= previous else { return nil }; return min(10, current - previous)
     }

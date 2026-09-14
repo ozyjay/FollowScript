@@ -57,7 +57,7 @@ final class ScriptAlignmentEngineTests: XCTestCase {
         let script = ScriptDocument(text: "We begin together. Some material sits here. We begin together. The final section follows.")
         let previous = AlignmentState(tokenIndex: 3, confidence: 0.9, trackingState: .tracking, lowConfidenceUpdates: 0)
         let result = engine.align(script: script, recognisedText: "we begin together", previous: previous)
-        XCTAssertEqual(result.tokenIndex, 8)
+        XCTAssertEqual(result.tokenIndex, 9)
     }
 
     func testEarlierSentenceCannotMovePositionBackwards() {
@@ -112,6 +112,17 @@ final class ScriptAlignmentEngineTests: XCTestCase {
     func testPartialRecognitionCanTrack() {
         let result = align("FollowScript follows the speaker through a prepared script", speech: "follows the speaker", isFinal: false)
         XCTAssertNotNil(result.tokenIndex)
+    }
+
+    func testPartialRecognitionTracksTheLatestConfidentWord() {
+        let result = align(
+            "FollowScript follows the speaker through a prepared script",
+            speech: "follows the speaker",
+            isFinal: false
+        )
+
+        XCTAssertEqual(result.estimatedTokenIndex, 3)
+        XCTAssertEqual(result.committedTokenIndex, 3)
     }
 
     func testSingleWordPartialDoesNotPullEstablishedPositionForward() {
@@ -254,7 +265,7 @@ final class ScriptAlignmentEngineTests: XCTestCase {
             previous: premature.state,
             isFinal: false
         )
-        XCTAssertEqual(phraseStart.tokenIndex, 8)
+        XCTAssertEqual(phraseStart.tokenIndex, 9)
         XCTAssertEqual(phraseStart.matchedRange, 8...9)
 
         let completedPhrase = engine.align(
@@ -264,7 +275,7 @@ final class ScriptAlignmentEngineTests: XCTestCase {
             isFinal: true
         )
         XCTAssertEqual(completedPhrase.tokenIndex, 10)
-        XCTAssertEqual(completedPhrase.matchedRange, 8...10)
+        XCTAssertEqual(completedPhrase.matchedRange, 9...10)
     }
 
     func testModeratelySizedSequentialFixtureProgresses() {
@@ -287,7 +298,7 @@ final class ScriptAlignmentEngineTests: XCTestCase {
         let previous = AlignmentState(tokenIndex: 250, confidence: 0.9, trackingState: .tracking, lowConfidenceUpdates: 0)
         let result = engine.align(script: script, recognisedText: "word251 word252 word253 word254", previous: previous)
         XCTAssertEqual(result.searchMode, .local)
-        XCTAssertEqual(result.tokenIndex, 253)
+        XCTAssertEqual(result.tokenIndex, 254)
     }
 
     private func align(
