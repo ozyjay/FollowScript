@@ -10,7 +10,7 @@ Top content padding places the first row at roughly 28% of screen height. Automa
 
 ## Automatic following
 
-Position comes only from `ScriptAlignmentEngine`. There is no timer scroll. Matching and scroll targets are monotonic once an initial position is acquired: earlier script wording cannot move the prompt backwards. The view model emits a new scroll target after at least two forward tokens; moving animation is ease-in-out over 0.20 seconds. An automatic catch-up advances by no more than eight tokens per step at 220-millisecond intervals, preventing a distant recognised position from producing one oversized animated sweep.
+Position comes only from `ScriptAlignmentEngine`. There is no timer scroll. Matching and scroll targets are monotonic once an initial position is acquired: earlier script wording cannot move the prompt backwards. The view model coalesces recognition bursts for one 16-millisecond display interval, then emits the newest scroll target after at least two forward tokens; this prevents multiple SwiftUI scroll mutations in one frame without delaying alignment or highlighting. Moving animation is ease-in-out over 0.20 seconds. An automatic catch-up advances by no more than eight tokens per step at 220-millisecond intervals, preventing a distant recognised position from producing one oversized animated sweep.
 
 ## Manual priority and controls
 

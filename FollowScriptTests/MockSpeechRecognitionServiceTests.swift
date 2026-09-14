@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import FollowScript
 
 @MainActor
@@ -251,6 +252,30 @@ final class MockSpeechRecognitionServiceTests: XCTestCase {
             initialScrollTarget + 8
         )
         XCTAssertLessThan(try XCTUnwrap(model.scrollTarget), model.currentTokenIndex ?? 0)
+        model.stop()
+    }
+
+    func testRapidRecognitionBurstCoalescesScrollPublication() async throws {
+        let service = MockSpeechRecognitionService()
+        let model = TeleprompterViewModel(
+            scriptText: "one two three four five six seven eight",
+            service: service
+        )
+        var publishedTargets: [Int] = []
+        let observation = model.$scrollTarget
+            .compactMap { $0 }
+            .sink { publishedTargets.append($0) }
+
+        model.start()
+        try await Task.sleep(for: .milliseconds(30))
+        service.send("one two", isFinal: false)
+        service.send("one two three four", isFinal: false)
+        service.send("one two three four five six", isFinal: false)
+        try await Task.sleep(for: .milliseconds(40))
+
+        XCTAssertEqual(model.committedTokenIndex, 5)
+        XCTAssertEqual(publishedTargets, [5])
+        withExtendedLifetime(observation) {}
         model.stop()
     }
 }

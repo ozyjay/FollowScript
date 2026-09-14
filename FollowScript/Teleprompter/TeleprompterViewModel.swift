@@ -184,6 +184,7 @@ final class TeleprompterViewModel: ObservableObject {
     private enum ScrollConfiguration {
         static let minimumTokenAdvance = 2
         static let maximumAnimatedAdvance = 8
+        static let publicationInterval = Duration.milliseconds(16)
         static let catchUpInterval = Duration.milliseconds(220)
     }
 
@@ -649,22 +650,30 @@ final class TeleprompterViewModel: ObservableObject {
     }
 
     private func requestScroll(towards tokenIndex: Int) {
-        guard let lastScrollTarget else {
-            scrollTarget = tokenIndex
-            self.lastScrollTarget = tokenIndex
+        if let lastScrollTarget,
+           tokenIndex - lastScrollTarget < ScrollConfiguration.minimumTokenAdvance {
             return
         }
-        guard tokenIndex - lastScrollTarget >= ScrollConfiguration.minimumTokenAdvance else { return }
 
         pendingScrollDestination = max(pendingScrollDestination ?? tokenIndex, tokenIndex)
         guard scrollCatchUpTask == nil else { return }
         scrollCatchUpTask = Task { [weak self] in
             guard let self else { return }
-            while !Task.isCancelled,
-                  !self.automaticFollowingSuspended,
-                  let destination = self.pendingScrollDestination,
-                  let current = self.lastScrollTarget,
-                  destination - current >= ScrollConfiguration.minimumTokenAdvance {
+            // Recognition can commit several adjacent updates inside one display frame.
+            // Wait one frame interval so only the newest scroll destination is published.
+            try? await Task.sleep(for: ScrollConfiguration.publicationInterval)
+            while !Task.isCancelled, !self.automaticFollowingSuspended,
+                  let destination = self.pendingScrollDestination {
+                guard let current = self.lastScrollTarget else {
+                    self.scrollTarget = destination
+                    self.lastScrollTarget = destination
+                    self.pendingScrollDestination = nil
+                    break
+                }
+                guard destination - current >= ScrollConfiguration.minimumTokenAdvance else {
+                    self.pendingScrollDestination = nil
+                    break
+                }
                 let next = min(destination, current + ScrollConfiguration.maximumAnimatedAdvance)
                 self.scrollTarget = next
                 self.lastScrollTarget = next
