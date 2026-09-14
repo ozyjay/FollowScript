@@ -17,6 +17,7 @@ final class FollowScriptSettingsTests: XCTestCase {
         XCTAssertFalse(settings.mirrorsPrompt)
         XCTAssertFalse(settings.flipsPromptVertically)
         XCTAssertFalse(settings.keepsDisplayAwake)
+        XCTAssertFalse(settings.logsTimestampedTrackingInformation)
         XCTAssertTrue(settings.ignoresSquareBracketedText)
         XCTAssertTrue(settings.removesExtraWhitespace)
     }
@@ -26,6 +27,7 @@ final class FollowScriptSettingsTests: XCTestCase {
         settings.mirrorsPrompt = true
         settings.flipsPromptVertically = true
         settings.keepsDisplayAwake = true
+        settings.logsTimestampedTrackingInformation = true
         settings.centresHighlightedText = false
         settings.ignoresSquareBracketedText = false
         settings.removesExtraWhitespace = false
@@ -36,6 +38,7 @@ final class FollowScriptSettingsTests: XCTestCase {
         XCTAssertTrue(decoded.mirrorsPrompt)
         XCTAssertTrue(decoded.flipsPromptVertically)
         XCTAssertTrue(decoded.keepsDisplayAwake)
+        XCTAssertTrue(decoded.logsTimestampedTrackingInformation)
         XCTAssertFalse(decoded.centresHighlightedText)
         XCTAssertFalse(decoded.ignoresSquareBracketedText)
         XCTAssertFalse(decoded.removesExtraWhitespace)

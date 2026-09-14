@@ -17,6 +17,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
     var mirrorsPrompt = false
     var flipsPromptVertically = false
     var keepsDisplayAwake = false
+    var logsTimestampedTrackingInformation = false
     var ignoresSquareBracketedText = true
     var removesExtraWhitespace = true
 
@@ -29,6 +30,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         case mirrorsPrompt
         case flipsPromptVertically
         case keepsDisplayAwake
+        case logsTimestampedTrackingInformation
         case ignoresSquareBracketedText
         case removesExtraWhitespace
     }
@@ -45,6 +47,10 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         mirrorsPrompt = try container.decodeIfPresent(Bool.self, forKey: .mirrorsPrompt) ?? false
         flipsPromptVertically = try container.decodeIfPresent(Bool.self, forKey: .flipsPromptVertically) ?? false
         keepsDisplayAwake = try container.decodeIfPresent(Bool.self, forKey: .keepsDisplayAwake) ?? false
+        logsTimestampedTrackingInformation = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .logsTimestampedTrackingInformation
+        ) ?? false
         ignoresSquareBracketedText = try container.decodeIfPresent(
             Bool.self,
             forKey: .ignoresSquareBracketedText

@@ -20,6 +20,7 @@ private final class TrackingLatencyInstrument {
         category: "TrackingLatency"
     )
     private static let summaryInterval = 20
+    private let isEnabled: Bool
 
     private var nextSequence: UInt64 = 0
     private var pending: PendingUpdate?
@@ -28,7 +29,12 @@ private final class TrackingLatencyInstrument {
     private var uiCommitTotalMilliseconds = 0.0
     private var totalMaximumMilliseconds = 0.0
 
+    init(isEnabled: Bool) {
+        self.isEnabled = isEnabled
+    }
+
     func beginRecognitionUpdate(characterCount: Int, isFinal: Bool) -> (sequence: UInt64, signpostID: OSSignpostID, arrival: UInt64) {
+        guard isEnabled else { return (0, .exclusive, 0) }
         closeSupersededUpdateIfNeeded()
         nextSequence &+= 1
         let signpostID = OSSignpostID(log: Self.log)
@@ -49,6 +55,7 @@ private final class TrackingLatencyInstrument {
     }
 
     func alignmentCompleted(sequence: UInt64, signpostID: OSSignpostID, arrival: UInt64) {
+        guard isEnabled else { return }
         let completed = DispatchTime.now().uptimeNanoseconds
         let alignmentMilliseconds = milliseconds(from: arrival, to: completed)
         os_signpost(
@@ -70,6 +77,7 @@ private final class TrackingLatencyInstrument {
     }
 
     func uiStateDidCommit(sequence: UInt64) {
+        guard isEnabled else { return }
         guard let pending, pending.sequence == sequence else { return }
         let committed = DispatchTime.now().uptimeNanoseconds
         let alignmentMilliseconds = milliseconds(
@@ -219,6 +227,7 @@ final class TeleprompterViewModel: ObservableObject {
     private let engine: ScriptAlignmentEngine
     private let microphoneCheckRoomDuration: Duration
     private let microphoneCheckReadingDuration: Duration
+    private let logsTimestampedTrackingInformation: Bool
     private var recognitionTask: Task<Void, Never>?
     private var restartTask: Task<Void, Never>?
     private var followResumeTask: Task<Void, Never>?
@@ -236,13 +245,14 @@ final class TeleprompterViewModel: ObservableObject {
     private var microphoneCheckPeak = 0.0
     private var microphoneCheckInitialText = ""
     private var microphoneCheckSawAlignment = false
-    private let trackingLatency = TrackingLatencyInstrument()
+    private let trackingLatency: TrackingLatencyInstrument
     private var previousRecognisedText = ""
 
     init(
         scriptText: String,
         ignoresSquareBracketedText: Bool = true,
         removesExtraWhitespace: Bool = true,
+        logsTimestampedTrackingInformation: Bool = false,
         service: (any SpeechRecognitionService)? = nil,
         engine: ScriptAlignmentEngine = ScriptAlignmentEngine(),
         microphoneCheckRoomDuration: Duration = .seconds(2),
@@ -259,6 +269,8 @@ final class TeleprompterViewModel: ObservableObject {
         self.engine = engine
         self.microphoneCheckRoomDuration = microphoneCheckRoomDuration
         self.microphoneCheckReadingDuration = microphoneCheckReadingDuration
+        self.logsTimestampedTrackingInformation = logsTimestampedTrackingInformation
+        trackingLatency = TrackingLatencyInstrument(isEnabled: logsTimestampedTrackingInformation)
     }
 
     var currentTokenIndex: Int? { alignmentState.estimatedTokenIndex }
@@ -609,6 +621,7 @@ final class TeleprompterViewModel: ObservableObject {
         previousPosition: Int?,
         result: AlignmentResult
     ) {
+        guard logsTimestampedTrackingInformation else { return }
         guard result.committedTokenIndex != previousPosition else { return }
         let chosen = result.committedTokenIndex
         let movement = chosen.map { $0 - (previousPosition ?? $0) } ?? 0

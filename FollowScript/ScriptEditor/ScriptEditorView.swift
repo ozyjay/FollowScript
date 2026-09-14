@@ -53,6 +53,7 @@ struct ScriptEditorView: View {
                     scriptText: model.scriptText,
                     ignoresSquareBracketedText: model.settings.ignoresSquareBracketedText,
                     removesExtraWhitespace: model.settings.removesExtraWhitespace,
+                    logsTimestampedTrackingInformation: model.settings.logsTimestampedTrackingInformation,
                     settings: $model.settings,
                     onExit: { model.presentsTeleprompter = false }
                 )

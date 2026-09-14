@@ -52,6 +52,18 @@ struct SettingsView: View {
                     )
                     .accessibilityHint("Omits bracketed placeholders from the prompt and speech matching")
                 }
+
+                Section("Diagnostics") {
+                    Toggle(
+                        "Log timestamped tracking info",
+                        isOn: $model.settings.logsTimestampedTrackingInformation
+                    )
+                    .accessibilityHint(
+                        "Writes recognised text, tracking decisions and timing information to the system console"
+                    )
+                } footer: {
+                    Text("Off by default. Logs stay on this device and may contain words from your script.")
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

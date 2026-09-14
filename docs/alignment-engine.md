@@ -35,7 +35,7 @@ A candidate at least five tokens ahead is treated as ambiguous when its lead ove
 
 ## Decision trace
 
-The `TrackingDecision` unified-log category emits one lightweight record only when the committed position changes. Each record contains the current and previous recognised text, the appended text when the transcript is cumulative (otherwise the full current text), old and chosen token positions, signed movement and direction, the top three `position:score` candidates, score margin, partial/final status, and decision reason.
+When “Log timestamped tracking info” is enabled in Settings, the `TrackingDecision` unified-log category emits one lightweight record only when the committed position changes. Each record contains the current and previous recognised text, the appended text when the transcript is cumulative (otherwise the full current text), old and chosen token positions, signed movement and direction, the top three `position:score` candidates, score margin, partial/final status, and decision reason. The option is off by default.
 
 Interpret a small `margin` as competing script locations, especially around repeated wording. `localAdvanceTooLarge` means a short update attempted to move beyond its local budget; continued distinctive speech should allow global reacquisition. `distantJumpNeedsDistinctiveEvidence` means global search found a remote match without enough rare-word support. `ambiguousCandidates` means the top match did not beat the runner-up clearly enough. `insufficientEvidence` means confidence or the applicable commit threshold was not met.
 

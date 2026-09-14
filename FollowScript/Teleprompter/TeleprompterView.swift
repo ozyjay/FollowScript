@@ -18,6 +18,7 @@ struct TeleprompterView: View {
         scriptText: String,
         ignoresSquareBracketedText: Bool,
         removesExtraWhitespace: Bool,
+        logsTimestampedTrackingInformation: Bool,
         settings: Binding<FollowScriptSettings>,
         onExit: @escaping () -> Void
     ) {
@@ -25,7 +26,8 @@ struct TeleprompterView: View {
             wrappedValue: TeleprompterViewModel(
                 scriptText: scriptText,
                 ignoresSquareBracketedText: ignoresSquareBracketedText,
-                removesExtraWhitespace: removesExtraWhitespace
+                removesExtraWhitespace: removesExtraWhitespace,
+                logsTimestampedTrackingInformation: logsTimestampedTrackingInformation
             )
         )
         _settings = settings
