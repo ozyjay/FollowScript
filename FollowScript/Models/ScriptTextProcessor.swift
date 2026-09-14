@@ -1,8 +1,22 @@
 import Foundation
 
 enum ScriptTextProcessor {
-    static func prepare(_ source: String, ignoringSquareBracketedText: Bool) -> String {
-        guard ignoringSquareBracketedText else { return source }
+    static func prepare(
+        _ source: String,
+        ignoringSquareBracketedText: Bool,
+        removingExtraWhitespace: Bool = false
+    ) -> String {
+        let prepared = ignoringSquareBracketedText
+            ? removingSquareBracketedText(from: source)
+            : source
+
+        guard removingExtraWhitespace else { return prepared }
+        return prepared
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+    }
+
+    private static func removingSquareBracketedText(from source: String) -> String {
 
         var result = ""
         var bracketedText = ""

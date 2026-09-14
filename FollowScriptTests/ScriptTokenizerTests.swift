@@ -71,4 +71,30 @@ final class ScriptTokenizerTests: XCTestCase {
             source
         )
     }
+
+    func testExtraWhitespaceCanBeCollapsedForPrompting() {
+        let source = "  First   line.\n\n\nSecond\tline.  "
+
+        XCTAssertEqual(
+            ScriptTextProcessor.prepare(
+                source,
+                ignoringSquareBracketedText: false,
+                removingExtraWhitespace: true
+            ),
+            "First line. Second line."
+        )
+    }
+
+    func testExtraWhitespaceCanBePreservedForPrompting() {
+        let source = "First line.\n\nSecond line."
+
+        XCTAssertEqual(
+            ScriptTextProcessor.prepare(
+                source,
+                ignoringSquareBracketedText: false,
+                removingExtraWhitespace: false
+            ),
+            source
+        )
+    }
 }

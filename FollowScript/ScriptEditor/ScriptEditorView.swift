@@ -52,6 +52,7 @@ struct ScriptEditorView: View {
                 TeleprompterView(
                     scriptText: model.scriptText,
                     ignoresSquareBracketedText: model.settings.ignoresSquareBracketedText,
+                    removesExtraWhitespace: model.settings.removesExtraWhitespace,
                     settings: $model.settings,
                     onExit: { model.presentsTeleprompter = false }
                 )

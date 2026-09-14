@@ -18,6 +18,7 @@ final class FollowScriptSettingsTests: XCTestCase {
         XCTAssertFalse(settings.flipsPromptVertically)
         XCTAssertFalse(settings.keepsDisplayAwake)
         XCTAssertTrue(settings.ignoresSquareBracketedText)
+        XCTAssertTrue(settings.removesExtraWhitespace)
     }
 
     func testPromptFlipPreferencesRoundTripThroughPersistenceEncoding() throws {
@@ -27,6 +28,7 @@ final class FollowScriptSettingsTests: XCTestCase {
         settings.keepsDisplayAwake = true
         settings.centresHighlightedText = false
         settings.ignoresSquareBracketedText = false
+        settings.removesExtraWhitespace = false
 
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(FollowScriptSettings.self, from: data)
@@ -36,5 +38,6 @@ final class FollowScriptSettingsTests: XCTestCase {
         XCTAssertTrue(decoded.keepsDisplayAwake)
         XCTAssertFalse(decoded.centresHighlightedText)
         XCTAssertFalse(decoded.ignoresSquareBracketedText)
+        XCTAssertFalse(decoded.removesExtraWhitespace)
     }
 }

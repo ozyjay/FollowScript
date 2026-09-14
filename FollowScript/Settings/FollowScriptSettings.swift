@@ -18,6 +18,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
     var flipsPromptVertically = false
     var keepsDisplayAwake = false
     var ignoresSquareBracketedText = true
+    var removesExtraWhitespace = true
 
     private enum CodingKeys: String, CodingKey {
         case fontSize
@@ -29,6 +30,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         case flipsPromptVertically
         case keepsDisplayAwake
         case ignoresSquareBracketedText
+        case removesExtraWhitespace
     }
 
     init() {}
@@ -46,6 +48,10 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         ignoresSquareBracketedText = try container.decodeIfPresent(
             Bool.self,
             forKey: .ignoresSquareBracketedText
+        ) ?? true
+        removesExtraWhitespace = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .removesExtraWhitespace
         ) ?? true
     }
 }

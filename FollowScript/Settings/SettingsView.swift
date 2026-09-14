@@ -41,6 +41,12 @@ struct SettingsView: View {
 
                 Section("Script processing") {
                     Toggle(
+                        "Remove extra whitespace",
+                        isOn: $model.settings.removesExtraWhitespace
+                    )
+                    .accessibilityHint("Collapses spaces, tabs and line breaks in the teleprompter prompt")
+
+                    Toggle(
                         "Ignore text in square brackets",
                         isOn: $model.settings.ignoresSquareBracketedText
                     )

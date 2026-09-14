@@ -242,6 +242,7 @@ final class TeleprompterViewModel: ObservableObject {
     init(
         scriptText: String,
         ignoresSquareBracketedText: Bool = true,
+        removesExtraWhitespace: Bool = true,
         service: (any SpeechRecognitionService)? = nil,
         engine: ScriptAlignmentEngine = ScriptAlignmentEngine(),
         microphoneCheckRoomDuration: Duration = .seconds(2),
@@ -250,7 +251,8 @@ final class TeleprompterViewModel: ObservableObject {
         script = ScriptDocument(
             text: ScriptTextProcessor.prepare(
                 scriptText,
-                ignoringSquareBracketedText: ignoresSquareBracketedText
+                ignoringSquareBracketedText: ignoresSquareBracketedText,
+                removingExtraWhitespace: removesExtraWhitespace
             )
         )
         self.service = service ?? SpeechServiceFactory.live()

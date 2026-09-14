@@ -5,6 +5,7 @@ struct TeleprompterView: View {
     @StateObject private var model: TeleprompterViewModel
     @State private var showsDiagnostics = false
     @State private var showsMicrophoneCheck = false
+    @State private var showsTrackingStatus = true
     @State private var pausedByUser = false
     @State private var previousIdleTimerDisabled: Bool?
     @State private var requestedPromptRow: PromptRow?
@@ -16,13 +17,15 @@ struct TeleprompterView: View {
     init(
         scriptText: String,
         ignoresSquareBracketedText: Bool,
+        removesExtraWhitespace: Bool,
         settings: Binding<FollowScriptSettings>,
         onExit: @escaping () -> Void
     ) {
         _model = StateObject(
             wrappedValue: TeleprompterViewModel(
                 scriptText: scriptText,
-                ignoresSquareBracketedText: ignoresSquareBracketedText
+                ignoresSquareBracketedText: ignoresSquareBracketedText,
+                removesExtraWhitespace: removesExtraWhitespace
             )
         )
         _settings = settings
@@ -158,6 +161,15 @@ struct TeleprompterView: View {
                 Button("Diagnostics", systemImage: "ladybug") { showsDiagnostics = true }
 #endif
                 Button(
+                    showsTrackingStatus ? "Hide tracking status" : "Show tracking status",
+                    systemImage: showsTrackingStatus ? "eye.slash" : "eye"
+                ) {
+                    showsTrackingStatus.toggle()
+                }
+                .accessibilityValue(showsTrackingStatus ? "Shown" : "Hidden")
+                .accessibilityHint("Changes only the status display; speech following continues")
+
+                Button(
                     settings.mirrorsPrompt ? "Use normal prompt view" : "Mirror prompt",
                     systemImage: "arrow.left.and.right"
                 ) {
@@ -208,10 +220,12 @@ struct TeleprompterView: View {
                 .disabled(!model.isListening)
             }
 
-            TrackingStatusView(
-                recognition: model.recognitionActivity,
-                following: model.followingPresentationState
-            )
+            if showsTrackingStatus {
+                TrackingStatusView(
+                    recognition: model.recognitionActivity,
+                    following: model.followingPresentationState
+                )
+            }
 
             MicrophoneLevelView(
                 level: model.audioLevel,
