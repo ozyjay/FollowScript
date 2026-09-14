@@ -10,6 +10,7 @@ struct ScriptAlignmentEngine: Sendable {
         var reacquisitionThreshold = 0.66
         var updatesBeforeGlobalSearch = 2
         var minimumInitialPartialTokens = 2
+        var partialResultTokenLag = 1
 
         static let standard = Configuration()
     }
@@ -64,7 +65,14 @@ struct ScriptAlignmentEngine: Sendable {
         let largeJump = previous.tokenIndex.map { abs(best.end - $0) > configuration.localLookAhead } ?? false
         let jumpHasEvidence = recognised.count >= 3 && confidence >= configuration.reacquisitionThreshold
         let mayMove = accepted && (!largeJump || (useGlobalSearch && jumpHasEvidence))
-        let selectedIndex = mayMove ? best.end : previous.tokenIndex
+        let selectedIndex: Int?
+        if mayMove {
+            let lag = isFinal ? 0 : configuration.partialResultTokenLag
+            let laggedIndex = max(0, best.end - lag)
+            selectedIndex = max(previous.tokenIndex ?? laggedIndex, laggedIndex)
+        } else {
+            selectedIndex = previous.tokenIndex
+        }
         let lowConfidenceUpdates = mayMove ? 0 : previous.lowConfidenceUpdates + 1
         let trackingState: AlignmentTrackingState
         if mayMove && confidence >= configuration.trackingThreshold {

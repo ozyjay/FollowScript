@@ -34,8 +34,16 @@ final class ScriptAlignmentEngineTests: XCTestCase {
 
     func testSingleAndMultipleRecognitionErrors() {
         let script = ScriptDocument(text: "We measured comprehension response time and long term trust")
-        let single = engine.align(script: script, recognisedText: "we measured comprehension response lime and long term trust")
-        let multiple = engine.align(script: script, recognisedText: "we measured convention response lime and long term trust")
+        let single = engine.align(
+            script: script,
+            recognisedText: "we measured comprehension response lime and long term trust",
+            isFinal: true
+        )
+        let multiple = engine.align(
+            script: script,
+            recognisedText: "we measured convention response lime and long term trust",
+            isFinal: true
+        )
         XCTAssertEqual(single.tokenIndex, 8)
         XCTAssertEqual(multiple.tokenIndex, 8)
     }
@@ -49,7 +57,7 @@ final class ScriptAlignmentEngineTests: XCTestCase {
         let script = ScriptDocument(text: "We begin together. Some material sits here. We begin together. The final section follows.")
         let previous = AlignmentState(tokenIndex: 3, confidence: 0.9, trackingState: .tracking, lowConfidenceUpdates: 0)
         let result = engine.align(script: script, recognisedText: "we begin together", previous: previous)
-        XCTAssertEqual(result.tokenIndex, 9)
+        XCTAssertEqual(result.tokenIndex, 8)
     }
 
     func testEarlierSentenceCannotMovePositionBackwards() {
@@ -106,6 +114,26 @@ final class ScriptAlignmentEngineTests: XCTestCase {
         XCTAssertNotNil(result.tokenIndex)
     }
 
+    func testSingleWordPartialDoesNotPullEstablishedPositionForward() {
+        let script = ScriptDocument(text: "analysis and design")
+        let previous = AlignmentState(
+            tokenIndex: 0,
+            confidence: 0.9,
+            trackingState: .tracking,
+            lowConfidenceUpdates: 0
+        )
+
+        let result = engine.align(
+            script: script,
+            recognisedText: "and",
+            previous: previous,
+            isFinal: false
+        )
+
+        XCTAssertEqual(result.tokenIndex, 0)
+        XCTAssertEqual(result.matchedRange, 1...1)
+    }
+
     func testSingleWordPartialCannotPrematurelyAnchorSubjectTitle() {
         let script = ScriptDocument(text: "Hello, and welcome to CP5046: ICT Project 1 - Analysis and Design. I’m Jason Holdsworth.")
 
@@ -116,14 +144,23 @@ final class ScriptAlignmentEngineTests: XCTestCase {
         )
         XCTAssertNil(premature.tokenIndex)
 
-        let phrase = engine.align(
+        let phraseStart = engine.align(
             script: script,
-            recognisedText: "analysis and design",
+            recognisedText: "analysis and",
             previous: premature.state,
             isFinal: false
         )
-        XCTAssertEqual(phrase.tokenIndex, 10)
-        XCTAssertEqual(phrase.matchedRange, 8...10)
+        XCTAssertEqual(phraseStart.tokenIndex, 8)
+        XCTAssertEqual(phraseStart.matchedRange, 8...9)
+
+        let completedPhrase = engine.align(
+            script: script,
+            recognisedText: "analysis and design",
+            previous: phraseStart.state,
+            isFinal: true
+        )
+        XCTAssertEqual(completedPhrase.tokenIndex, 10)
+        XCTAssertEqual(completedPhrase.matchedRange, 8...10)
     }
 
     func testModeratelySizedSequentialFixtureProgresses() {
@@ -146,7 +183,7 @@ final class ScriptAlignmentEngineTests: XCTestCase {
         let previous = AlignmentState(tokenIndex: 250, confidence: 0.9, trackingState: .tracking, lowConfidenceUpdates: 0)
         let result = engine.align(script: script, recognisedText: "word251 word252 word253 word254", previous: previous)
         XCTAssertEqual(result.searchMode, .local)
-        XCTAssertEqual(result.tokenIndex, 254)
+        XCTAssertEqual(result.tokenIndex, 253)
     }
 
     private func align(

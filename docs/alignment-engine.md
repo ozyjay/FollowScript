@@ -22,6 +22,8 @@ Confidence scales the candidate score by evidence: `score × (0.62 + 0.38 × min
 
 Initial acquisition requires at least two tokens from a partial recognition update. A final result may still acquire from one token, and one-token partials may continue an established position. This prevents a common interim word such as “and” from prematurely anchoring the prompt while the recogniser is still forming a longer phrase.
 
+Accepted partial results expose a current position one token behind the matched endpoint. The following recognised word therefore confirms that the speaker has passed the highlighted word; a lone new partial token cannot pull an established position forward. Final results expose the matched endpoint without this lag. This makes prompting reactive to demonstrated progress rather than pre-emptive from the latest recognition hypothesis.
+
 ## Tracking, uncertainty and reacquisition
 
 Once a current token exists, candidate ranges must begin at that token or later. Tracked updates search from the current token through 80 tokens ahead, so alignment is monotonic and recognised wording from an earlier passage cannot move the prompt backwards. A local result below `0.48` is rejected. Confidence at or above `0.62` reports `tracking`; weaker accepted evidence reports `uncertain`.
