@@ -65,6 +65,7 @@ struct AlignmentResult: Equatable, Sendable {
     let trackingState: AlignmentTrackingState
     let searchMode: SearchMode
     let candidateScore: Double
+    let decisionTrace: AlignmentDecisionTrace
     let state: AlignmentState
 
     var tokenIndex: Int? { committedTokenIndex }
@@ -73,4 +74,31 @@ struct AlignmentResult: Equatable, Sendable {
         case local
         case global
     }
+}
+
+struct AlignmentDecisionTrace: Equatable, Sendable {
+    struct Candidate: Equatable, Sendable {
+        let tokenIndex: Int
+        let score: Double
+    }
+
+    enum Decision: String, Equatable, Sendable {
+        case advance
+        case hold
+    }
+
+    enum Reason: String, Equatable, Sendable {
+        case accepted
+        case insufficientEvidence
+        case ambiguousCandidates
+        case localAdvanceTooLarge
+        case distantJumpNeedsDistinctiveEvidence
+        case emptyRecognition
+        case awaitingMorePartialTokens
+    }
+
+    let candidates: [Candidate]
+    let scoreMargin: Double?
+    let decision: Decision
+    let reason: Reason
 }

@@ -187,6 +187,11 @@ final class TeleprompterViewModel: ObservableObject {
         static let catchUpInterval = Duration.milliseconds(220)
     }
 
+    private static let decisionLogger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "FollowScript",
+        category: "TrackingDecision"
+    )
+
     let script: ScriptDocument
     @Published private(set) var alignmentState = AlignmentState.initial
     @Published private(set) var recognisedText = ""
@@ -208,7 +213,6 @@ final class TeleprompterViewModel: ObservableObject {
     @Published private(set) var microphoneGain = MicrophoneGainState(isAdjustable: false, value: 1)
     @Published private(set) var microphoneCheckPhase: MicrophoneCheckPhase = .idle
     @Published private(set) var microphoneCheckResult: MicrophoneCheckResult?
-    @Published private(set) var trackingMeasurementSequence: UInt64 = 0
 
     private let service: any SpeechRecognitionService
     private let engine: ScriptAlignmentEngine
@@ -219,6 +223,7 @@ final class TeleprompterViewModel: ObservableObject {
     private var followResumeTask: Task<Void, Never>?
     private var audioLevelTask: Task<Void, Never>?
     private var scrollCatchUpTask: Task<Void, Never>?
+    private var trackingUICommitTask: Task<Void, Never>?
     private var pendingScrollDestination: Int?
     private var lastScrollTarget: Int?
     private var wantsRecognition = false
@@ -231,6 +236,7 @@ final class TeleprompterViewModel: ObservableObject {
     private var microphoneCheckInitialText = ""
     private var microphoneCheckSawAlignment = false
     private let trackingLatency = TrackingLatencyInstrument()
+    private var previousRecognisedText = ""
 
     init(
         scriptText: String,
@@ -322,6 +328,8 @@ final class TeleprompterViewModel: ObservableObject {
         followResumeTask?.cancel()
         scrollCatchUpTask?.cancel()
         scrollCatchUpTask = nil
+        trackingUICommitTask?.cancel()
+        trackingUICommitTask = nil
         audioLevelTask?.cancel()
         audioLevelTask = nil
         microphoneCheckTask?.cancel()
@@ -560,6 +568,13 @@ final class TeleprompterViewModel: ObservableObject {
             signpostID: measurement.signpostID,
             arrival: measurement.arrival
         )
+        traceCommittedDecision(
+            update: update,
+            previousText: previousRecognisedText,
+            previousPosition: alignmentState.committedTokenIndex,
+            result: result
+        )
+        previousRecognisedText = update.text
         alignmentState = result.state
         matchedRange = result.matchedRange
         isCurrentMatchPartial = !update.isFinal && result.matchedRange != nil
@@ -572,11 +587,41 @@ final class TeleprompterViewModel: ObservableObject {
         if let tokenIndex = result.committedTokenIndex, !automaticFollowingSuspended {
             requestScroll(towards: tokenIndex)
         }
-        trackingMeasurementSequence = measurement.sequence
+        scheduleTrackingUICommit(sequence: measurement.sequence)
     }
 
-    func trackingUIStateDidCommit(sequence: UInt64) {
-        trackingLatency.uiStateDidCommit(sequence: sequence)
+    private func scheduleTrackingUICommit(sequence: UInt64) {
+        trackingUICommitTask?.cancel()
+        trackingUICommitTask = Task { [weak self] in
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            self?.trackingLatency.uiStateDidCommit(sequence: sequence)
+            self?.trackingUICommitTask = nil
+        }
+    }
+
+    private func traceCommittedDecision(
+        update: SpeechRecognitionUpdate,
+        previousText: String,
+        previousPosition: Int?,
+        result: AlignmentResult
+    ) {
+        guard result.committedTokenIndex != previousPosition else { return }
+        let chosen = result.committedTokenIndex
+        let movement = chosen.map { $0 - (previousPosition ?? $0) } ?? 0
+        let direction = movement > 0 ? "forward" : movement < 0 ? "backward" : "anchor"
+        let candidates = result.decisionTrace.candidates.map {
+            "\($0.tokenIndex):\(String(format: "%.3f", $0.score))"
+        }.joined(separator: ",")
+        let margin = result.decisionTrace.scoreMargin.map { String(format: "%.3f", $0) } ?? "n/a"
+        Self.decisionLogger.info(
+            "recognised=\(update.text, privacy: .public) previous_recognised=\(previousText, privacy: .public) delta=\(self.incrementalText(from: previousText, to: update.text), privacy: .public) current=\(previousPosition.map(String.init) ?? "none", privacy: .public) chosen=\(chosen.map(String.init) ?? "none", privacy: .public) movement=\(movement, privacy: .public) direction=\(direction, privacy: .public) candidates=\(candidates, privacy: .public) margin=\(margin, privacy: .public) recognition=\(update.isFinal ? "final" : "partial", privacy: .public) decision=\(result.decisionTrace.decision.rawValue, privacy: .public) reason=\(result.decisionTrace.reason.rawValue, privacy: .public)"
+        )
+    }
+
+    private func incrementalText(from previous: String, to current: String) -> String {
+        guard !previous.isEmpty, current.hasPrefix(previous) else { return current }
+        return String(current.dropFirst(previous.count)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func consumeMicrophoneLevelForCheck(_ level: Double) {

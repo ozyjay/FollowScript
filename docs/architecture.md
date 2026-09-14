@@ -18,7 +18,7 @@ flowchart TD
 
 `SpeechRecognitionService` is a main-actor protocol returning an `AsyncThrowingStream`, a lightweight audio-input event stream and explicit recording controls. Input events carry levels, the current system-selected route and recording failures. `SpeechServiceFactory` selects the iOS 26 analyser backend or the iOS 18–25 legacy backend. `MockSpeechRecognitionService` is the test/development seam. `MicrophoneCaptureMonitor` performs thread-safe metering, route publication and optional local file writes from the existing audio tap.
 
-`TeleprompterViewModel` owns session intent, recognition and level tasks, recording state, alignment state, errors and follow-suspension timing on the main actor. SwiftUI observes published state and decides only how to display it. `AppModel` owns the current script, settings and their `UserDefaults` persistence.
+`TeleprompterViewModel` owns session intent, recognition and level tasks, recording state, alignment state, errors and follow-suspension timing on the main actor. SwiftUI observes published state and decides only how to display it. Tracking-latency completion is coalesced in a cancellable main-actor task after state publication; it is not routed through an observable counter, avoiding multiple `onChange` mutations in one SwiftUI frame. `AppModel` owns the current script, settings and their `UserDefaults` persistence.
 
 `RootView` presents a brief in-app loading screen before the editor. It displays a presentation copy of the app icon and reads the current marketing version and Git-commit-count build number from the application bundle; it does not perform network or speech initialisation. The build-time mechanism is documented in `docs/versioning.md`.
 

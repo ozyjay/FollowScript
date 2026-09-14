@@ -20,6 +20,10 @@ struct ScriptAlignmentEngine: Sendable {
         var repetitionPenalty = 0.10
         var skipPenaltyPerToken = 0.012
         var distantJumpPenalty = 0.12
+        var minimumCandidateScoreMargin = 0.035
+        var ambiguousJumpDistance = 5
+        var forwardContinuityBonus = 0.035
+        var backwardTransitionPenalty = 0.28
         var defaultSpeakingRate = 2.6
         var timingSlackTokens = 4.0
 
@@ -50,15 +54,17 @@ struct ScriptAlignmentEngine: Sendable {
             let tokens = Array(tokenizer.recognitionTokens(observation.text).suffix(configuration.recognitionWindow))
             return tokens.isEmpty ? nil : (tokens, observation.confidence)
         }
-        guard let first = alternatives.first else { return unchangedResult(previous: previous, observationTime: observationTime) }
+        guard let first = alternatives.first else {
+            return unchangedResult(previous: previous, observationTime: observationTime, reason: .emptyRecognition)
+        }
         let recognised = first.0
         guard !script.tokens.isEmpty, !recognised.isEmpty else {
-            return unchangedResult(previous: previous, observationTime: observationTime)
+            return unchangedResult(previous: previous, observationTime: observationTime, reason: .emptyRecognition)
         }
         guard previous.tokenIndex != nil
                 || isFinal
                 || recognised.count >= configuration.minimumInitialPartialTokens else {
-            return unchangedResult(previous: previous, observationTime: observationTime)
+            return unchangedResult(previous: previous, observationTime: observationTime, reason: .awaitingMorePartialTokens)
         }
 
         let useGlobalSearch = previous.tokenIndex == nil
@@ -80,7 +86,11 @@ struct ScriptAlignmentEngine: Sendable {
             elapsed: elapsed(current: observationTime, previous: previous.lastObservationTime),
             speakingRate: previous.speakingRateTokensPerSecond
         )
-        guard let best = candidates.first else { return unchangedResult(previous: previous, observationTime: observationTime) }
+        guard let best = candidates.first else {
+            return unchangedResult(previous: previous, observationTime: observationTime, reason: .insufficientEvidence)
+        }
+
+        let scoreMargin = candidates.dropFirst().first.map { best.score - $0.score }
 
         let evidence = min(1, Double(Set(recognised).count) / 5.0)
         let finalBoost = isFinal ? 0.03 : 0
@@ -94,12 +104,17 @@ struct ScriptAlignmentEngine: Sendable {
         let exceedsLocalAdvanceBudget = previous.tokenIndex.map {
             !useGlobalSearch && best.end - $0 > recognised.count + configuration.localAdvanceSlack
         } ?? false
-        let estimateAllowed = accepted && !exceedsLocalAdvanceBudget
+        let ambiguousJump = previous.tokenIndex.map {
+            best.end - $0 >= configuration.ambiguousJumpDistance
+                && (scoreMargin ?? 1) < configuration.minimumCandidateScoreMargin
+        } ?? false
+        let estimateAllowed = accepted && !ambiguousJump && !exceedsLocalAdvanceBudget
             && (!largeJump || (useGlobalSearch && jumpHasEvidence))
         let estimatedIndex = estimateAllowed
             ? lagged(best.end, recognisedTokenCount: recognised.count, isFinal: isFinal)
             : previous.estimatedTokenIndex
-        let mayMove = accepted && confidence >= (useGlobalSearch ? threshold : configuration.commitThreshold)
+        let mayMove = accepted && !ambiguousJump
+            && confidence >= (useGlobalSearch ? threshold : configuration.commitThreshold)
             && !exceedsLocalAdvanceBudget
             && (!largeJump || (useGlobalSearch && jumpHasEvidence))
         let selectedIndex: Int?
@@ -129,6 +144,18 @@ struct ScriptAlignmentEngine: Sendable {
             lastObservationTime: observationTime ?? previous.lastObservationTime,
             speakingRateTokensPerSecond: updatedRate(previous: previous, committed: selectedIndex, observationTime: observationTime)
         )
+        let decisionReason: AlignmentDecisionTrace.Reason
+        if !accepted || confidence < (useGlobalSearch ? threshold : configuration.commitThreshold) {
+            decisionReason = .insufficientEvidence
+        } else if ambiguousJump {
+            decisionReason = .ambiguousCandidates
+        } else if exceedsLocalAdvanceBudget {
+            decisionReason = .localAdvanceTooLarge
+        } else if largeJump && !(useGlobalSearch && jumpHasEvidence) {
+            decisionReason = .distantJumpNeedsDistinctiveEvidence
+        } else {
+            decisionReason = .accepted
+        }
         return AlignmentResult(
             estimatedTokenIndex: estimatedIndex,
             committedTokenIndex: selectedIndex,
@@ -137,6 +164,12 @@ struct ScriptAlignmentEngine: Sendable {
             trackingState: trackingState,
             searchMode: searchMode,
             candidateScore: best.score,
+            decisionTrace: AlignmentDecisionTrace(
+                candidates: candidates.prefix(3).map { .init(tokenIndex: $0.end, score: $0.score) },
+                scoreMargin: scoreMargin,
+                decision: mayMove ? .advance : .hold,
+                reason: decisionReason
+            ),
             state: state
         )
     }
@@ -199,6 +232,9 @@ struct ScriptAlignmentEngine: Sendable {
                         ) + 0.04 * parent.score
                     }.max() ?? 0
                     score = 0.80 * score + pathScore
+                    if end > previousIndex, end - previousIndex <= recognised.count + 1 {
+                        score += configuration.forwardContinuityBonus
+                    }
                 }
                 let candidate = Candidate(start: start, end: end, score: min(1, max(0, score)))
                 candidates.append(candidate)
@@ -234,7 +270,10 @@ struct ScriptAlignmentEngine: Sendable {
     }
 
     private func transitionScore(delta: Int, elapsed: Double?, speakingRate: Double?, global: Bool) -> Double {
-        if delta < 0 { return max(0, 0.70 - Double(abs(delta)) * configuration.repetitionPenalty) }
+        if delta < 0 {
+            return max(0, 0.70 - configuration.backwardTransitionPenalty
+                - Double(abs(delta)) * configuration.repetitionPenalty)
+        }
         if delta == 0 { return 0.94 }
         var penalty = Double(max(0, delta - 1)) * configuration.skipPenaltyPerToken
         if let elapsed {
@@ -291,7 +330,11 @@ struct ScriptAlignmentEngine: Sendable {
         return previous[rhs.count]
     }
 
-    private func unchangedResult(previous: AlignmentState, observationTime: TimeInterval?) -> AlignmentResult {
+    private func unchangedResult(
+        previous: AlignmentState,
+        observationTime: TimeInterval?,
+        reason: AlignmentDecisionTrace.Reason
+    ) -> AlignmentResult {
         let lowConfidenceUpdates = previous.lowConfidenceUpdates + 1
         return AlignmentResult(
             estimatedTokenIndex: previous.estimatedTokenIndex,
@@ -301,6 +344,12 @@ struct ScriptAlignmentEngine: Sendable {
             trackingState: previous.tokenIndex == nil ? .reacquiring : .uncertain,
             searchMode: previous.trackingState == .reacquiring ? .global : .local,
             candidateScore: 0,
+            decisionTrace: AlignmentDecisionTrace(
+                candidates: [],
+                scoreMargin: nil,
+                decision: .hold,
+                reason: reason
+            ),
             state: AlignmentState(
                 tokenIndex: previous.tokenIndex,
                 confidence: 0,

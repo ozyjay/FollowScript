@@ -23,13 +23,23 @@ Distinctiveness uses a within-script IDF-like weight: `1 + 0.28 × log((token co
 
 ## Transitions and timing
 
-Candidate evidence contributes 84% and the transition model 16% when an anchor exists. Staying is cheap, small forward moves are preferred, and progressively larger omissions/skips incur `0.012` per token. Distant global jumps add `0.12`. When audio time is available, movement beyond the estimated speaking distance plus four tokens receives an additional penalty. The engine starts at 2.6 tokens/second and smooths observed committed progress, clamped to 1–5.5 tokens/second.
+Candidate evidence contributes 80%, the transition model 16% and the retained parent score 4% when an anchor exists. A forward candidate within one token of the recognised phrase length receives a `0.035` continuity bonus. Staying is cheap, while backward beam transitions lose `0.28` before the existing `0.10` per-token repetition penalty. Progressively larger forward omissions/skips incur `0.012` per token, and distant global jumps add `0.12`. When audio time is available, movement beyond the estimated speaking distance plus four tokens receives an additional penalty. The engine starts at 2.6 tokens/second and smooths observed committed progress, clamped to 1–5.5 tokens/second.
 
 Repetition is represented by keeping the current/nearby beam hypotheses and a low cost for staying. Automatic candidate ranges remain forward-only from the committed anchor, preserving the safety rule that stale recognition cannot pull the prompt backwards. A user-selected anchor remains the explicit way to move backwards.
 
 ## Reacquisition and safety
 
 Tracking searches only the next 80 tokens. Two poor updates enter reacquisition and expand the search from the committed position to the end of the script. Tentative and committed distant movement share the distinctive-evidence guard, so a weak repeated phrase cannot flash the highlight elsewhere or move the viewport. A local update cannot advance beyond its recognised-token count plus four tokens; a genuine larger omission must first trigger reacquisition.
+
+A candidate at least five tokens ahead is treated as ambiguous when its lead over the runner-up is below `0.035`. It cannot change either the estimate or committed position until subsequent recognition creates a clearer margin. This leaves small continuous advances responsive while requiring materially stronger evidence for a jump.
+
+## Decision trace
+
+The `TrackingDecision` unified-log category emits one lightweight record only when the committed position changes. Each record contains the current and previous recognised text, the appended text when the transcript is cumulative (otherwise the full current text), old and chosen token positions, signed movement and direction, the top three `position:score` candidates, score margin, partial/final status, and decision reason.
+
+Interpret a small `margin` as competing script locations, especially around repeated wording. `localAdvanceTooLarge` means a short update attempted to move beyond its local budget; continued distinctive speech should allow global reacquisition. `distantJumpNeedsDistinctiveEvidence` means global search found a remote match without enough rare-word support. `ambiguousCandidates` means the top match did not beat the runner-up clearly enough. `insufficientEvidence` means confidence or the applicable commit threshold was not met.
+
+Tune conservatively through `ScriptAlignmentEngine.Configuration`, with a regression sequence for the observed transcript. Increase `minimumCandidateScoreMargin`, `distantJumpPenalty` or `backwardTransitionPenalty` to resist false movement; increase `forwardContinuityBonus` to favour nearby progression. If genuine recovery freezes, reduce only the guard implicated by the trace and confirm repeated/common phrases still remain stable. Keep latency comparisons in Release on the same iPhone because Debug alignment timings are not representative.
 
 ## Replay evaluation
 

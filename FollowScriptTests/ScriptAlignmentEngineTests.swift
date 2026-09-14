@@ -247,6 +247,60 @@ final class ScriptAlignmentEngineTests: XCTestCase {
 
         XCTAssertEqual(result.tokenIndex, 0)
         XCTAssertNil(result.matchedRange)
+        XCTAssertEqual(result.decisionTrace.reason, .localAdvanceTooLarge)
+    }
+
+    func testRepeatedCommonPhrasePrefersNearbyForwardContinuation() {
+        let script = ScriptDocument(text: "anchor we can do this one two three four five we can do this finish")
+        let previous = AlignmentState(tokenIndex: 0, confidence: 0.9, trackingState: .tracking, lowConfidenceUpdates: 0)
+
+        let result = engine.align(
+            script: script,
+            recognisedText: "we can do this",
+            previous: previous,
+            isFinal: false
+        )
+
+        XCTAssertEqual(result.committedTokenIndex, 4)
+        XCTAssertEqual(result.decisionTrace.decision, .advance)
+        XCTAssertEqual(result.decisionTrace.reason, .accepted)
+    }
+
+    func testSmallScoreMarginCannotAuthoriseLargeJump() {
+        var configuration = ScriptAlignmentEngine.Configuration.standard
+        configuration.localAdvanceSlack = 100
+        configuration.ambiguousJumpDistance = 3
+        configuration.minimumCandidateScoreMargin = 1
+        let cautiousEngine = ScriptAlignmentEngine(configuration: configuration)
+        let script = ScriptDocument(text: "anchor one two three four five target common phrase ending")
+        let previous = AlignmentState(tokenIndex: 0, confidence: 0.9, trackingState: .tracking, lowConfidenceUpdates: 0)
+
+        let result = cautiousEngine.align(
+            script: script,
+            recognisedText: "target common phrase ending",
+            previous: previous,
+            isFinal: true
+        )
+
+        XCTAssertEqual(result.committedTokenIndex, 0)
+        XCTAssertEqual(result.decisionTrace.reason, .ambiguousCandidates)
+        XCTAssertGreaterThan(result.decisionTrace.candidates.count, 1)
+        XCTAssertNotNil(result.decisionTrace.scoreMargin)
+    }
+
+    func testIncrementalPartialTranscriptsAdvanceContinuously() {
+        let script = ScriptDocument(text: "alpha beta gamma delta epsilon zeta")
+        let first = engine.align(script: script, recognisedText: "alpha beta", isFinal: false)
+        let second = engine.align(
+            script: script,
+            recognisedText: "alpha beta gamma",
+            previous: first.state,
+            isFinal: false
+        )
+
+        XCTAssertEqual(first.committedTokenIndex, 1)
+        XCTAssertEqual(second.committedTokenIndex, 2)
+        XCTAssertEqual(second.decisionTrace.decision, .advance)
     }
 
     func testSingleWordPartialCannotPrematurelyAnchorSubjectTitle() {

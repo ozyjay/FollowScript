@@ -105,14 +105,6 @@ struct TeleprompterView: View {
             }
             updateDisplaySleepSetting()
         }
-        .onChange(of: model.trackingMeasurementSequence) { _, sequence in
-            // Yield once so this marks SwiftUI's processing of the published state, rather than
-            // the synchronous property assignments that produced it.
-            Task { @MainActor in
-                await Task.yield()
-                model.trackingUIStateDidCommit(sequence: sequence)
-            }
-        }
         .alert("FollowScript needs attention", isPresented: errorBinding) {
             Button("Try again") {
                 pausedByUser = false
