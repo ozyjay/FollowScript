@@ -22,7 +22,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		100000000000000000000013 /* Exceptions for FollowScript folder in FollowScript target */ = {
+		100000000000000000000013 /* Exceptions for "FollowScript" folder in "FollowScript" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -35,7 +35,7 @@
 		100000000000000000000010 /* FollowScript */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				100000000000000000000013 /* Exceptions for FollowScript folder in FollowScript target */,
+				100000000000000000000013 /* Exceptions for "FollowScript" folder in "FollowScript" target */,
 			);
 			path = FollowScript;
 			sourceTree = "<group>";
