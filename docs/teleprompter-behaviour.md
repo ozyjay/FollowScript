@@ -14,6 +14,8 @@ Position comes only from `ScriptAlignmentEngine`. There is no timer scroll. Matc
 
 Any drag suspends automatic repositioning for six seconds while speech alignment continues internally. A visible “Return to current position” button ends suspension immediately. Automatic return targets the latest aligned token rather than a stale position.
 
+Tapping any script row presents a confirmation before changing the following position. Continue from here makes the first token in that row the new alignment anchor and restarts recognition so its earlier cumulative transcript cannot undo the choice. This allows deliberate movement backwards or forwards while preserving forward-only automatic following during normal speech.
+
 Pause stops recognition/audio; Resume creates a fresh stream without resetting alignment. Exit cleans up and returns to editing. Backgrounding pauses; becoming active resumes if no session is listening. Permission or recognition errors show a plain-language alert with Try Again and Exit.
 
 Below the top controls, a live microphone meter labels the current input as Too quiet, Good or Too loud while listening. The labels are broad setup guidance for speech detection, not an accuracy score. An accessible Record control captures the same microphone input already used by recognition, turns red while active and becomes Stop recording. Pausing, backgrounding or exiting finishes an active recording. Once stopped, the latest locally saved CAF file can be exported with the system share sheet.

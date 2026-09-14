@@ -143,9 +143,36 @@ final class TeleprompterViewModel: ObservableObject {
         }
     }
 
+    /// Establishes a new user-selected anchor. Automatic alignment remains forward-only from here.
+    func moveFollowing(to tokenIndex: Int) {
+        guard script.tokens.indices.contains(tokenIndex) else { return }
+        alignmentState = AlignmentState(
+            tokenIndex: tokenIndex,
+            confidence: 1,
+            trackingState: .tracking,
+            lowConfidenceUpdates: 0
+        )
+        matchedRange = tokenIndex...tokenIndex
+        searchMode = .local
+        candidateScore = 1
+        recognisedText = ""
+        followResumeTask?.cancel()
+        automaticFollowingSuspended = false
+        scrollTarget = tokenIndex
+        lastScrollTarget = tokenIndex
+
+        // Clear the recogniser's cumulative transcript so earlier speech cannot immediately
+        // return alignment to the old position.
+        if wantsRecognition {
+            recognitionTask?.cancel()
+            isListening = false
+            resume()
+        }
+    }
+
     private func recognitionLoop() async {
         defer {
-            finishRecording()
+            if !wantsRecognition { finishRecording() }
             recognitionTask = nil
             isListening = false
         }

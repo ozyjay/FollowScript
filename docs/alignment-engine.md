@@ -24,6 +24,8 @@ Confidence scales the candidate score by evidence: `score × (0.62 + 0.38 × min
 
 Once a current token exists, candidate ranges must begin at that token or later. Tracked updates search from the current token through 80 tokens ahead, so alignment is monotonic and recognised wording from an earlier passage cannot move the prompt backwards. A local result below `0.48` is rejected. Confidence at or above `0.62` reports `tracking`; weaker accepted evidence reports `uncertain`.
 
+The user can explicitly replace that anchor by tapping a prompt row and confirming Continue from here. The view model resets the alignment state to the first token in the selected row and restarts recognition to clear its cumulative transcript. Automatic matching is then monotonic from the new anchor; this is the only supported backward transition.
+
 Two consecutive rejected updates move state to `reacquiring`. The following update searches from the current token to the end of the script; only initial acquisition searches the whole script. Global evidence must reach `0.66`; a distant jump also requires at least three recognised tokens. This prevents a single dubious update moving to another repeated phrase. Global candidates beyond the local look-ahead receive a small `0.03` penalty where a previous position exists.
 
 If evidence is insufficient, position remains unchanged and the low-confidence counter advances. Empty input never moves position.

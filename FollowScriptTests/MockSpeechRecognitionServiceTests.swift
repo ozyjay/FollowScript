@@ -88,6 +88,29 @@ final class MockSpeechRecognitionServiceTests: XCTestCase {
         XCTAssertEqual(MicrophoneLevelQuality(level: 0.5), .good)
         XCTAssertEqual(MicrophoneLevelQuality(level: 0.95), .loud)
     }
+
+    func testUserCanMoveFollowingBackwards() async throws {
+        let service = MockSpeechRecognitionService()
+        let model = TeleprompterViewModel(
+            scriptText: "First passage has several words. Middle passage has several words. Final passage has several words.",
+            service: service
+        )
+
+        model.start()
+        try await Task.sleep(for: .milliseconds(30))
+        service.send("final passage has several words", isFinal: true)
+        try await Task.sleep(for: .milliseconds(30))
+        let laterPosition = try XCTUnwrap(model.currentTokenIndex)
+
+        model.moveFollowing(to: 0)
+
+        XCTAssertGreaterThan(laterPosition, 0)
+        XCTAssertEqual(model.currentTokenIndex, 0)
+        XCTAssertEqual(model.scrollTarget, 0)
+        XCTAssertEqual(model.recognisedText, "")
+        XCTAssertFalse(model.automaticFollowingSuspended)
+        model.stop()
+    }
 }
 
 @MainActor

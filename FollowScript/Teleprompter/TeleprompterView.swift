@@ -6,6 +6,7 @@ struct TeleprompterView: View {
     @State private var showsDiagnostics = false
     @State private var pausedByUser = false
     @State private var previousIdleTimerDisabled: Bool?
+    @State private var requestedPromptRow: PromptRow?
     @Environment(\.scenePhase) private var scenePhase
 
     @Binding var settings: FollowScriptSettings
@@ -33,6 +34,9 @@ struct TeleprompterView: View {
                                     .multilineTextAlignment(textAlignment(for: row))
                                     .id(row.id)
                                     .accessibilityLabel(row.plainText)
+                                    .accessibilityHint("Double-tap to move speech following to this passage")
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { requestedPromptRow = row }
                             }
                             Color.clear.frame(height: geometry.size.height * 0.55)
                         }
@@ -98,6 +102,21 @@ struct TeleprompterView: View {
             Button("OK") { model.clearRecordingError() }
         } message: {
             Text(model.recordingErrorMessage ?? "FollowScript could not record audio.")
+        }
+        .confirmationDialog(
+            "Move following to this passage?",
+            isPresented: repositionConfirmationBinding,
+            titleVisibility: .visible
+        ) {
+            Button("Continue from here") {
+                if let requestedPromptRow {
+                    model.moveFollowing(to: requestedPromptRow.id)
+                }
+                requestedPromptRow = nil
+            }
+            Button("Cancel", role: .cancel) { requestedPromptRow = nil }
+        } message: {
+            Text(requestedPromptRow?.plainText ?? "")
         }
 #if DEBUG
         .sheet(isPresented: $showsDiagnostics) {
@@ -227,6 +246,13 @@ struct TeleprompterView: View {
         Binding(
             get: { model.recordingErrorMessage != nil },
             set: { if !$0 { model.clearRecordingError() } }
+        )
+    }
+
+    private var repositionConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { requestedPromptRow != nil },
+            set: { if !$0 { requestedPromptRow = nil } }
         )
     }
 
