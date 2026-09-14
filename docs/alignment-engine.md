@@ -39,9 +39,23 @@ A candidate at least five tokens ahead is treated as ambiguous when the selected
 
 ## Decision trace
 
-When “Log timestamped tracking info” is enabled in Settings, the `TrackingDecision` unified-log category emits one lightweight record only when the committed position changes. Each record contains the current and previous recognised text, the appended text when the transcript is cumulative (otherwise the full current text), old and chosen token positions, signed movement and direction, the top three raw `position:score` candidates, score margin, partial/final status, and decision reason. The option is off by default.
+When “Log timestamped tracking info” is enabled in Settings, the `TrackingDecision` unified-log category records meaningful tracking decisions rather than only successful position changes. It logs advances, rejected/held updates, tracking-state or search-mode transitions, entry to and exit from reacquisition, and local continuity-preference decisions. Empty recognition and the harmless initial single-token partial wait are suppressed unless another meaningful transition occurs. The option remains off by default.
 
-`margin` now means the selected positional cluster's score minus the strongest candidate outside the three-token cluster. `n/a` means the retained beam contains no genuinely distant competitor. A negative margin on an accepted local decision can occur when the continuity tie-breaker deliberately chooses a nearby plausible cluster over a slightly stronger distant raw candidate. `localAdvanceTooLarge` means a short update attempted to move beyond its local budget; continued distinctive speech should allow global reacquisition. `distantJumpNeedsDistinctiveEvidence` means global search found a remote match without enough rare-word support. `ambiguousCandidates` means genuinely different script locations remain too close. `insufficientEvidence` means confidence or the applicable commit threshold was not met.
+Each record separates the stages that were previously conflated:
+
+- `raw_best` is the highest-scoring retained candidate before the local continuity tie-breaker.
+- `selected_match` is the candidate endpoint selected by the alignment decision before commit lag/holdback.
+- `cluster` is the three-token-radius positional neighbourhood around `selected_match` used for diagnostic interpretation.
+- `distant_competitor` is the strongest displayed candidate outside that neighbourhood. `outsideTop3` means the engine calculated a cluster margin against a retained beam candidate that was not one of the three candidates printed in the compact log.
+- `cluster_margin` is the selected positional cluster's score minus the strongest genuinely distant candidate used by the engine. `n/a` means no distant competitor was retained.
+- `committed` is the stable scrolling anchor after any partial-result lag or hold.
+- `adjustment` explains why `raw_best`, `selected_match` and `committed` differ. Values can include `continuityPreference`, `singleWordPartialLag`, `commitHoldback` and `hold`.
+- `mode` is `local` or `global`; `tracking` is `tracking`, `uncertain` or `reacquiring`. `mode_transition` and `state_transition` make changes explicit.
+- `event` summarises the significant occurrence as `advance`, `hold`, `continuityPreference`, `reacquisitionEnter` or `reacquisitionExit`.
+
+The existing decision reasons retain their meaning. `localAdvanceTooLarge` means a short update attempted to move beyond its local budget; continued distinctive speech should allow global reacquisition. `distantJumpNeedsDistinctiveEvidence` means global search found a remote match without enough rare-word support. `ambiguousCandidates` means genuinely different script locations remain too close. `insufficientEvidence` means confidence or the applicable commit threshold was not met.
+
+These diagnostic fields are observational only and do not alter thresholds, candidate scores, clustering, continuity preference, reacquisition or scrolling. The diagnostic cluster radius mirrors the standard engine radius so app logs are easy to read; alignment remains authoritative.
 
 Tune conservatively through `ScriptAlignmentEngine.Configuration`, with a regression sequence for the observed transcript. Increase `minimumCandidateScoreMargin`, `distantJumpPenalty` or `backwardTransitionPenalty` to resist false movement; increase `forwardContinuityBonus` or, cautiously, `continuityPreferenceMargin` to favour nearby progression. Change `candidateClusterRadius` only with examples showing that nearby endpoints are being mistaken for separate locations. If genuine recovery freezes, reduce only the guard implicated by the trace and confirm repeated/common phrases still remain stable. Keep latency comparisons in Release on the same iPhone because Debug alignment timings are not representative.
 
