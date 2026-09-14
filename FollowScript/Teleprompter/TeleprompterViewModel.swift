@@ -196,6 +196,12 @@ final class TeleprompterViewModel: ObservableObject {
         static let catchUpInterval = Duration.milliseconds(220)
     }
 
+    private enum TrackingDiagnosticConfiguration {
+        // Mirrors ScriptAlignmentEngine.Configuration.standard.candidateClusterRadius.
+        // Diagnostics are intentionally observational and do not feed this value back into alignment.
+        static let candidateClusterRadius = 3
+    }
+
     private static let decisionLogger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "FollowScript",
         category: "TrackingDecision"
@@ -571,10 +577,12 @@ final class TeleprompterViewModel: ObservableObject {
         recognitionActivity = .hearingSpeech
         let observations = [AlignmentObservation(text: update.text, confidence: update.confidence)]
             + update.alternatives.map { AlignmentObservation(text: $0) }
+        let previousState = alignmentState
+        let previousSearchMode = searchMode
         let result = engine.align(
             script: script,
             observations: observations,
-            previous: alignmentState,
+            previous: previousState,
             isFinal: update.isFinal,
             observationTime: update.audioTimeRange?.upperBound ?? update.timestamp.timeIntervalSinceReferenceDate
         )
@@ -583,10 +591,11 @@ final class TeleprompterViewModel: ObservableObject {
             signpostID: measurement.signpostID,
             arrival: measurement.arrival
         )
-        traceCommittedDecision(
+        traceTrackingDecision(
             update: update,
             previousText: previousRecognisedText,
-            previousPosition: alignmentState.committedTokenIndex,
+            previousState: previousState,
+            previousSearchMode: previousSearchMode,
             result: result
         )
         previousRecognisedText = update.text
@@ -615,24 +624,131 @@ final class TeleprompterViewModel: ObservableObject {
         }
     }
 
-    private func traceCommittedDecision(
+    private func traceTrackingDecision(
         update: SpeechRecognitionUpdate,
         previousText: String,
-        previousPosition: Int?,
+        previousState: AlignmentState,
+        previousSearchMode: AlignmentResult.SearchMode,
         result: AlignmentResult
     ) {
         guard logsTimestampedTrackingInformation else { return }
-        guard result.committedTokenIndex != previousPosition else { return }
-        let chosen = result.committedTokenIndex
-        let movement = chosen.map { $0 - (previousPosition ?? $0) } ?? 0
+
+        let previousPosition = previousState.committedTokenIndex
+        let committed = result.committedTokenIndex
+        let rawBest = result.decisionTrace.candidates.first
+        let selectedCandidate = diagnosticSelectedCandidate(for: result, rawBest: rawBest)
+        let continuityPreferenceApplied = rawBest?.tokenIndex != nil
+            && selectedCandidate?.tokenIndex != nil
+            && rawBest?.tokenIndex != selectedCandidate?.tokenIndex
+            && result.searchMode == .local
+        let positionChanged = committed != previousPosition
+        let trackingStateChanged = result.trackingState != previousState.trackingState
+        let searchModeChanged = result.searchMode != previousSearchMode
+        let significantHold = result.decisionTrace.decision == .hold
+            && result.decisionTrace.reason != .awaitingMorePartialTokens
+            && result.decisionTrace.reason != .emptyRecognition
+
+        guard positionChanged || trackingStateChanged || searchModeChanged
+                || significantHold || continuityPreferenceApplied else { return }
+
+        let movement = committed.map { $0 - (previousPosition ?? $0) } ?? 0
         let direction = movement > 0 ? "forward" : movement < 0 ? "backward" : "anchor"
-        let candidates = result.decisionTrace.candidates.map {
+        let candidates = result.decisionTrace.candidates.prefix(3).map {
             "\($0.tokenIndex):\(String(format: "%.3f", $0.score))"
         }.joined(separator: ",")
+        let rawBestDescription = rawBest.map {
+            "\($0.tokenIndex):\(String(format: "%.3f", $0.score))"
+        } ?? "none"
+        let selectedMatchDescription = selectedCandidate.map {
+            "\($0.tokenIndex):\(String(format: "%.3f", $0.score))"
+        } ?? "none"
+        let clusterDescription = selectedCandidate.map { candidate -> String in
+            let radius = TrackingDiagnosticConfiguration.candidateClusterRadius
+            return "\(max(0, candidate.tokenIndex - radius))...\(candidate.tokenIndex + radius)"
+        } ?? "none"
+        let distantCompetitor = selectedCandidate.flatMap { candidate in
+            result.decisionTrace.candidates.first {
+                abs($0.tokenIndex - candidate.tokenIndex) > TrackingDiagnosticConfiguration.candidateClusterRadius
+            }
+        }
+        let distantCompetitorDescription: String
+        if let distantCompetitor {
+            distantCompetitorDescription = "\(distantCompetitor.tokenIndex):\(String(format: "%.3f", distantCompetitor.score))"
+        } else if result.decisionTrace.scoreMargin != nil {
+            distantCompetitorDescription = "outsideTop3"
+        } else {
+            distantCompetitorDescription = "none"
+        }
         let margin = result.decisionTrace.scoreMargin.map { String(format: "%.3f", $0) } ?? "n/a"
-        Self.decisionLogger.info(
-            "recognised=\(update.text, privacy: .public) previous_recognised=\(previousText, privacy: .public) delta=\(self.incrementalText(from: previousText, to: update.text), privacy: .public) current=\(previousPosition.map(String.init) ?? "none", privacy: .public) chosen=\(chosen.map(String.init) ?? "none", privacy: .public) movement=\(movement, privacy: .public) direction=\(direction, privacy: .public) candidates=\(candidates, privacy: .public) margin=\(margin, privacy: .public) recognition=\(update.isFinal ? "final" : "partial", privacy: .public) decision=\(result.decisionTrace.decision.rawValue, privacy: .public) reason=\(result.decisionTrace.reason.rawValue, privacy: .public)"
+        let adjustment = diagnosticCommitAdjustment(
+            update: update,
+            rawBest: rawBest,
+            selectedCandidate: selectedCandidate,
+            committed: committed,
+            decision: result.decisionTrace.decision
         )
+        let stateTransition = previousState.trackingState == result.trackingState
+            ? "none"
+            : "\(previousState.trackingState.rawValue)->\(result.trackingState.rawValue)"
+        let modeTransition = previousSearchMode == result.searchMode
+            ? "none"
+            : "\(previousSearchMode.rawValue)->\(result.searchMode.rawValue)"
+        let event: String
+        if previousState.trackingState != .reacquiring, result.trackingState == .reacquiring {
+            event = "reacquisitionEnter"
+        } else if previousState.trackingState == .reacquiring, result.trackingState != .reacquiring {
+            event = "reacquisitionExit"
+        } else if result.decisionTrace.decision == .hold {
+            event = "hold"
+        } else if continuityPreferenceApplied {
+            event = "continuityPreference"
+        } else {
+            event = "advance"
+        }
+
+        Self.decisionLogger.info(
+            "event=\(event, privacy: .public) recognised=\(update.text, privacy: .public) previous_recognised=\(previousText, privacy: .public) delta=\(self.incrementalText(from: previousText, to: update.text), privacy: .public) current=\(previousPosition.map(String.init) ?? "none", privacy: .public) raw_best=\(rawBestDescription, privacy: .public) selected_match=\(selectedMatchDescription, privacy: .public) cluster=\(clusterDescription, privacy: .public) distant_competitor=\(distantCompetitorDescription, privacy: .public) cluster_margin=\(margin, privacy: .public) committed=\(committed.map(String.init) ?? "none", privacy: .public) adjustment=\(adjustment, privacy: .public) movement=\(movement, privacy: .public) direction=\(direction, privacy: .public) mode=\(result.searchMode.rawValue, privacy: .public) mode_transition=\(modeTransition, privacy: .public) tracking=\(result.trackingState.rawValue, privacy: .public) state_transition=\(stateTransition, privacy: .public) candidates=\(candidates, privacy: .public) recognition=\(update.isFinal ? "final" : "partial", privacy: .public) decision=\(result.decisionTrace.decision.rawValue, privacy: .public) reason=\(result.decisionTrace.reason.rawValue, privacy: .public)"
+        )
+    }
+
+    private func diagnosticSelectedCandidate(
+        for result: AlignmentResult,
+        rawBest: AlignmentDecisionTrace.Candidate?
+    ) -> AlignmentDecisionTrace.Candidate? {
+        if let endpoint = result.matchedRange?.upperBound {
+            return result.decisionTrace.candidates.first { $0.tokenIndex == endpoint }
+                ?? .init(tokenIndex: endpoint, score: result.candidateScore)
+        }
+        if let candidate = result.decisionTrace.candidates.first(where: {
+            abs($0.score - result.candidateScore) < 0.000_5
+        }) {
+            return candidate
+        }
+        return rawBest
+    }
+
+    private func diagnosticCommitAdjustment(
+        update: SpeechRecognitionUpdate,
+        rawBest: AlignmentDecisionTrace.Candidate?,
+        selectedCandidate: AlignmentDecisionTrace.Candidate?,
+        committed: Int?,
+        decision: AlignmentDecisionTrace.Decision
+    ) -> String {
+        var adjustments: [String] = []
+        if decision == .hold {
+            adjustments.append("hold")
+        }
+        if let rawBest, let selectedCandidate, rawBest.tokenIndex != selectedCandidate.tokenIndex {
+            adjustments.append("continuityPreference")
+        }
+        if let selectedCandidate, let committed, selectedCandidate.tokenIndex != committed {
+            if !update.isFinal && selectedCandidate.tokenIndex == committed + 1 {
+                adjustments.append("singleWordPartialLag")
+            } else {
+                adjustments.append("commitHoldback")
+            }
+        }
+        return adjustments.isEmpty ? "none" : adjustments.joined(separator: "+")
     }
 
     private func incrementalText(from previous: String, to current: String) -> String {
