@@ -42,14 +42,22 @@ final class MockSpeechRecognitionServiceTests: XCTestCase {
         )
 
         XCTAssertNil(model.nextPromptTokenIndex)
+        XCTAssertNil(model.dimmedThroughTokenIndex)
 
         model.moveFollowing(to: 0)
         XCTAssertEqual(model.currentTokenIndex, 0)
         XCTAssertEqual(model.nextPromptTokenIndex, 1)
+        XCTAssertNil(model.dimmedThroughTokenIndex)
+
+        model.moveFollowing(to: 1)
+        XCTAssertEqual(model.currentTokenIndex, 1)
+        XCTAssertEqual(model.nextPromptTokenIndex, 2)
+        XCTAssertNil(model.dimmedThroughTokenIndex)
 
         model.moveFollowing(to: 2)
         XCTAssertEqual(model.currentTokenIndex, 2)
         XCTAssertNil(model.nextPromptTokenIndex)
+        XCTAssertEqual(model.dimmedThroughTokenIndex, 0)
     }
 
     func testPartialMatchRangeIsExposedOnlyWhileRecognitionIsPartial() async throws {

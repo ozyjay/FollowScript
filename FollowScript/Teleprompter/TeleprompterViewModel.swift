@@ -287,6 +287,11 @@ final class TeleprompterViewModel: ObservableObject {
         let nextIndex = currentTokenIndex + 1
         return script.tokens.indices.contains(nextIndex) ? nextIndex : nil
     }
+    /// Last token safe to present as spoken, retaining one undimmed token behind the estimate.
+    var dimmedThroughTokenIndex: Int? {
+        guard let currentTokenIndex, currentTokenIndex >= 2 else { return nil }
+        return currentTokenIndex - 2
+    }
     var committedTokenIndex: Int? { alignmentState.committedTokenIndex }
     var partialMatchedRange: ClosedRange<Int>? { isCurrentMatchPartial ? matchedRange : nil }
     var confidence: Double { alignmentState.confidence }
