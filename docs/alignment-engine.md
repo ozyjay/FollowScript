@@ -20,6 +20,8 @@ This tolerates omitted, inserted and mistaken words while rewarding order and re
 
 Confidence scales the candidate score by evidence: `score × (0.62 + 0.38 × min(unique recognised tokens / 5, 1))`. Final results add `0.03`. Short fragments can therefore track, but provide less authority than a distinctive phrase.
 
+Initial acquisition requires at least two tokens from a partial recognition update. A final result may still acquire from one token, and one-token partials may continue an established position. This prevents a common interim word such as “and” from prematurely anchoring the prompt while the recogniser is still forming a longer phrase.
+
 ## Tracking, uncertainty and reacquisition
 
 Once a current token exists, candidate ranges must begin at that token or later. Tracked updates search from the current token through 80 tokens ahead, so alignment is monotonic and recognised wording from an earlier passage cannot move the prompt backwards. A local result below `0.48` is rejected. Confidence at or above `0.62` reports `tracking`; weaker accepted evidence reports `uncertain`.

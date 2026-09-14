@@ -9,6 +9,7 @@ struct ScriptAlignmentEngine: Sendable {
         var trackingThreshold = 0.62
         var reacquisitionThreshold = 0.66
         var updatesBeforeGlobalSearch = 2
+        var minimumInitialPartialTokens = 2
 
         static let standard = Configuration()
     }
@@ -29,6 +30,11 @@ struct ScriptAlignmentEngine: Sendable {
         let allRecognitionTokens = tokenizer.recognitionTokens(recognisedText)
         let recognised = Array(allRecognitionTokens.suffix(configuration.recognitionWindow))
         guard !script.tokens.isEmpty, !recognised.isEmpty else {
+            return unchangedResult(previous: previous)
+        }
+        guard previous.tokenIndex != nil
+                || isFinal
+                || recognised.count >= configuration.minimumInitialPartialTokens else {
             return unchangedResult(previous: previous)
         }
 

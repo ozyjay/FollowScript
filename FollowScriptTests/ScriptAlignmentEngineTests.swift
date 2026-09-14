@@ -106,6 +106,26 @@ final class ScriptAlignmentEngineTests: XCTestCase {
         XCTAssertNotNil(result.tokenIndex)
     }
 
+    func testSingleWordPartialCannotPrematurelyAnchorSubjectTitle() {
+        let script = ScriptDocument(text: "Hello, and welcome to CP5046: ICT Project 1 - Analysis and Design. I’m Jason Holdsworth.")
+
+        let premature = engine.align(
+            script: script,
+            recognisedText: "and",
+            isFinal: false
+        )
+        XCTAssertNil(premature.tokenIndex)
+
+        let phrase = engine.align(
+            script: script,
+            recognisedText: "analysis and design",
+            previous: premature.state,
+            isFinal: false
+        )
+        XCTAssertEqual(phrase.tokenIndex, 10)
+        XCTAssertEqual(phrase.matchedRange, 8...10)
+    }
+
     func testModeratelySizedSequentialFixtureProgresses() {
         let script = ScriptDocument(text: AlignmentFixtures.presentation)
         var state = AlignmentState.initial
