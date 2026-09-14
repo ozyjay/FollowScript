@@ -12,7 +12,7 @@ let package = Package(
             name: "FollowScriptCore",
             path: "FollowScript",
             exclude: [
-                "App", "Assets.xcassets", "ScriptEditor", "Settings", "Speech", "Teleprompter"
+                "App", "Assets.xcassets", "Info.plist", "ScriptEditor", "Settings", "Speech", "Teleprompter"
             ],
             sources: ["Models", "Alignment"]
         ),
