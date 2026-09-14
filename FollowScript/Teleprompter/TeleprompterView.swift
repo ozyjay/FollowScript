@@ -261,7 +261,7 @@ struct TeleprompterView: View {
         var result = AttributedString()
         for token in row.tokens {
             var piece = AttributedString(token.displayText)
-            if settings.highlightsActivePhrase, token.index == model.currentTokenIndex {
+            if settings.highlightsActivePhrase, token.index == model.nextPromptTokenIndex {
                 piece.foregroundColor = .yellow
                 piece.backgroundColor = Color.yellow.opacity(0.14)
             } else if settings.highlightsActivePhrase,
@@ -269,7 +269,7 @@ struct TeleprompterView: View {
                       partialRange.contains(token.index) {
                 piece.foregroundColor = Color.yellow.opacity(0.72)
                 piece.backgroundColor = Color.yellow.opacity(0.07)
-            } else if let current = model.currentTokenIndex, token.index < current {
+            } else if let current = model.currentTokenIndex, token.index <= current {
                 piece.foregroundColor = Color.white.opacity(0.48)
             }
             result.append(piece)
@@ -299,7 +299,7 @@ struct TeleprompterView: View {
     private func shouldCentreHighlightedText(in row: PromptRow) -> Bool {
         settings.highlightsActivePhrase
             && settings.centresHighlightedText
-            && row.containsToken(model.currentTokenIndex)
+            && row.containsToken(model.nextPromptTokenIndex)
     }
 
     private var errorBinding: Binding<Bool> {

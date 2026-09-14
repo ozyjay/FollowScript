@@ -29,9 +29,27 @@ final class MockSpeechRecognitionServiceTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(50))
 
         XCTAssertEqual(model.currentTokenIndex, 9)
+        XCTAssertNil(model.nextPromptTokenIndex)
         XCTAssertEqual(model.trackingState, .tracking)
         XCTAssertNotNil(model.scrollTarget)
         model.stop()
+    }
+
+    func testNextPromptTokenIndexLeadsEstimatedPositionWithoutChangingIt() {
+        let model = TeleprompterViewModel(
+            scriptText: "One two three",
+            service: MockSpeechRecognitionService()
+        )
+
+        XCTAssertNil(model.nextPromptTokenIndex)
+
+        model.moveFollowing(to: 0)
+        XCTAssertEqual(model.currentTokenIndex, 0)
+        XCTAssertEqual(model.nextPromptTokenIndex, 1)
+
+        model.moveFollowing(to: 2)
+        XCTAssertEqual(model.currentTokenIndex, 2)
+        XCTAssertNil(model.nextPromptTokenIndex)
     }
 
     func testPartialMatchRangeIsExposedOnlyWhileRecognitionIsPartial() async throws {

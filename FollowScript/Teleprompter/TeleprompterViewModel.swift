@@ -280,6 +280,13 @@ final class TeleprompterViewModel: ObservableObject {
     }
 
     var currentTokenIndex: Int? { alignmentState.estimatedTokenIndex }
+    /// Presentation-only cue for the next script token to speak.
+    /// Alignment and automatic scrolling continue to use their existing positions.
+    var nextPromptTokenIndex: Int? {
+        guard let currentTokenIndex else { return nil }
+        let nextIndex = currentTokenIndex + 1
+        return script.tokens.indices.contains(nextIndex) ? nextIndex : nil
+    }
     var committedTokenIndex: Int? { alignmentState.committedTokenIndex }
     var partialMatchedRange: ClosedRange<Int>? { isCurrentMatchPartial ? matchedRange : nil }
     var confidence: Double { alignmentState.confidence }

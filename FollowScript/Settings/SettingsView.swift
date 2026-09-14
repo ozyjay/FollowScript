@@ -26,10 +26,10 @@ struct SettingsView: View {
                         }
                     }
 
-                    Toggle("Highlight active phrase", isOn: $model.settings.highlightsActivePhrase)
+                    Toggle("Highlight next word", isOn: $model.settings.highlightsActivePhrase)
 
                     Toggle("Centre highlighted text", isOn: $model.settings.centresHighlightedText)
-                        .accessibilityHint("Centres the row containing the current highlighted word")
+                        .accessibilityHint("Centres the row containing the next word to speak")
 
                     Toggle("Mirror prompt horizontally", isOn: $model.settings.mirrorsPrompt)
 
