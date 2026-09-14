@@ -25,7 +25,8 @@ let package = Package(
                 "AlignmentClusterTests.swift",
                 "AlignmentFixtures.swift",
                 "ScriptAlignmentEngineTests.swift",
-                "ScriptTokenizerTests.swift"
+                "ScriptTokenizerTests.swift",
+                "StreamingASRAlignmentTests.swift"
             ]
         )
     ]
