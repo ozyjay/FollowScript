@@ -33,6 +33,14 @@ final class MicrophoneCaptureMonitor: @unchecked Sendable {
         return stream
     }
 
+    func reportInput(_ input: AudioInputDescriptor) {
+        lock.withLock {
+            for continuation in eventContinuations.values {
+                continuation.yield(.inputChanged(input))
+            }
+        }
+    }
+
     func startRecording(format: AVAudioFormat) throws {
         let folder = try Self.recordingsFolder()
         let formatter = DateFormatter()

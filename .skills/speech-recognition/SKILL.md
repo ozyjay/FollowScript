@@ -15,7 +15,7 @@ Use for files under `FollowScript/Speech` and lifecycle code consuming speech st
 - Keep Apple types behind `SpeechRecognitionService`; tests use `MockSpeechRecognitionService`.
 - Prefer `SpeechAnalyzer`/`SpeechTranscriber` on iOS 26+, with the on-device legacy API for iOS 18–25.
 - Feed SpeechAnalyzer only buffers converted to `bestAvailableAudioFormat`; it does not convert microphone PCM automatically.
-- Never store microphone audio. Require on-device recognition on the legacy path; do not silently fall back to a network recogniser.
+- Store microphone audio only for an explicit user-started local recording, and keep passive recognition buffers in memory. Require on-device recognition on the legacy path; do not silently fall back to a network recogniser.
 
 ## Workflow
 

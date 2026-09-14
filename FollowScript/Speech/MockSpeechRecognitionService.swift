@@ -36,6 +36,10 @@ final class MockSpeechRecognitionService: SpeechRecognitionService {
         eventContinuation?.yield(.level(level))
     }
 
+    func sendAudioInput(name: String, isExternal: Bool) {
+        eventContinuation?.yield(.inputChanged(.init(name: name, isExternal: isExternal)))
+    }
+
     func send(_ text: String, isFinal: Bool = false, confidence: Double? = nil) {
         continuation?.yield(
             SpeechRecognitionUpdate(

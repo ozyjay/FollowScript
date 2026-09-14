@@ -14,8 +14,14 @@ struct SpeechRecognitionUpdate: Equatable, Sendable {
     let confidence: Double?
 }
 
+struct AudioInputDescriptor: Equatable, Sendable {
+    let name: String
+    let isExternal: Bool
+}
+
 enum AudioInputEvent: Equatable, Sendable {
     case level(Double)
+    case inputChanged(AudioInputDescriptor)
     case recordingFailed(String)
 }
 
