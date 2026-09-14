@@ -238,6 +238,7 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
     private let captureMonitor = MicrophoneCaptureMonitor()
     private var microphoneFormat: AVAudioFormat?
     private var routeChangeTask: Task<Void, Never>?
+    private var segmentAssembler = SpeechRecognitionSegmentAssembler()
 
     init(locale: Locale) {
         self.locale = locale
@@ -337,14 +338,27 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
                 do {
                     for try await result in transcriber.results {
                         guard let self, generation == self.lifecycleGeneration else { return }
+                        let rawText = String(result.text.characters)
+                        let rawAlternatives = result.alternatives.map { String($0.characters) }
+                        let rawRange = result.range.secondsRange
+                        let finalizationTime = result.resultsFinalizationTime.finiteSeconds
+                        let assembled = self.segmentAssembler.ingest(
+                            text: rawText,
+                            alternatives: rawAlternatives,
+                            audioTimeRange: rawRange,
+                            isFinal: result.isFinal,
+                            finalizationTime: finalizationTime
+                        )
                         outputContinuation.yield(
                             SpeechRecognitionUpdate(
-                                text: String(result.text.characters),
-                                alternatives: result.alternatives.map { String($0.characters) },
+                                text: assembled.text,
+                                alternatives: assembled.alternatives,
                                 isFinal: result.isFinal,
                                 timestamp: Date(),
-                                audioTimeRange: result.range.secondsRange,
-                                confidence: nil
+                                audioTimeRange: assembled.audioTimeRange ?? rawRange,
+                                confidence: nil,
+                                rawText: rawText,
+                                rawAlternatives: rawAlternatives
                             )
                         )
                     }
@@ -392,6 +406,7 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
 
     private func monitorAudioRouteChanges() {
         routeChangeTask?.cancel()
+        routeChangeTask = nil
         routeChangeTask = Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(
                 named: AVAudioSession.routeChangeNotification
@@ -427,6 +442,7 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
         resultsTask = nil
         outputContinuation?.finish()
         outputContinuation = nil
+        segmentAssembler.reset()
         let localeToRelease = reservedLocale
         reservedLocale = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -444,5 +460,13 @@ private extension CMTimeRange {
         let duration = CMTimeGetSeconds(self.duration)
         guard start.isFinite, duration.isFinite, duration >= 0 else { return nil }
         return start..<(start + duration)
+    }
+}
+
+@available(iOS 26.0, *)
+private extension CMTime {
+    var finiteSeconds: TimeInterval? {
+        let seconds = CMTimeGetSeconds(self)
+        return seconds.isFinite ? seconds : nil
     }
 }
