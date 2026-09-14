@@ -40,12 +40,15 @@ final class MockSpeechRecognitionService: SpeechRecognitionService {
         eventContinuation?.yield(.inputChanged(.init(name: name, isExternal: isExternal)))
     }
 
-    func send(_ text: String, isFinal: Bool = false, confidence: Double? = nil) {
+    func send(_ text: String, alternatives: [String] = [], isFinal: Bool = false,
+              audioTimeRange: Range<TimeInterval>? = nil, confidence: Double? = nil) {
         continuation?.yield(
             SpeechRecognitionUpdate(
                 text: text,
+                alternatives: alternatives,
                 isFinal: isFinal,
                 timestamp: Date(),
+                audioTimeRange: audioTimeRange,
                 confidence: confidence
             )
         )

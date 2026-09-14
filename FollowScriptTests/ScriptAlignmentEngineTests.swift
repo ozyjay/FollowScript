@@ -134,6 +134,64 @@ final class ScriptAlignmentEngineTests: XCTestCase {
         XCTAssertEqual(result.matchedRange, 1...1)
     }
 
+    func testTentativeEstimateCanLeadCommittedScrollPosition() {
+        var configuration = ScriptAlignmentEngine.Configuration.standard
+        configuration.commitThreshold = 0.99
+        let cautiousEngine = ScriptAlignmentEngine(configuration: configuration)
+        let script = ScriptDocument(text: "alpha beta gamma delta epsilon zeta")
+        let previous = AlignmentState(tokenIndex: 1, confidence: 0.9, trackingState: .tracking, lowConfidenceUpdates: 0)
+        let result = cautiousEngine.align(script: script, recognisedText: "gamma delta", previous: previous)
+
+        XCTAssertGreaterThan(result.estimatedTokenIndex ?? 0, result.committedTokenIndex ?? 0)
+        XCTAssertNotNil(result.matchedRange)
+    }
+
+    func testBeamRetainsMultipleCandidatePositionsForRepeatedLanguage() {
+        let script = ScriptDocument(text: "we begin together pause we begin together then finish")
+        let result = engine.align(script: script, recognisedText: "we begin together", isFinal: true)
+
+        XCTAssertGreaterThan(result.state.hypotheses.count, 1)
+        XCTAssertGreaterThan(Set(result.state.hypotheses.map(\.tokenIndex)).count, 1)
+    }
+
+    func testAlternativeHypothesisCanRecoverPrimaryRecognitionError() {
+        let script = ScriptDocument(text: "common words then cobalt telescope marks the destination")
+        let result = engine.align(
+            script: script,
+            observations: [
+                AlignmentObservation(text: "unrelated primary error", confidence: 0.4),
+                AlignmentObservation(text: "cobalt telescope marks the destination", confidence: 0.9)
+            ],
+            isFinal: true
+        )
+        XCTAssertEqual(result.committedTokenIndex, 7)
+    }
+
+    func testTimingPenalisesImplausibleRapidMovement() {
+        let words = (0..<50).map { "token\($0)" }
+        let script = ScriptDocument(text: words.joined(separator: " "))
+        let previous = AlignmentState(tokenIndex: 2, confidence: 0.9, trackingState: .tracking,
+                                      lowConfidenceUpdates: 0, lastObservationTime: 10)
+        let result = engine.align(script: script, recognisedText: "token25 token26 token27",
+                                  previous: previous, observationTime: 10.1)
+        XCTAssertEqual(result.committedTokenIndex, 2)
+    }
+
+    func testReplayMetricsReportPositionErrorAndFalseJumps() {
+        let script = ScriptDocument(text: "one two three four five six seven eight")
+        var state = AlignmentState.initial
+        let updates = [("one two", 1), ("one two three four", 3), ("three four five six", 5)]
+        let frames = updates.enumerated().map { offset, update -> AlignmentReplayFrame in
+            let result = engine.align(script: script, recognisedText: update.0, previous: state,
+                                      isFinal: true, observationTime: Double(offset + 1))
+            state = result.state
+            return AlignmentReplayFrame(expectedTokenIndex: update.1, result: result)
+        }
+        let metrics = AlignmentReplayMetrics(frames: frames)
+        XCTAssertLessThanOrEqual(metrics.meanAbsolutePositionError, 1)
+        XCTAssertEqual(metrics.falseJumpCount, 0)
+    }
+
     func testParaphrasedPeoplePhraseDoesNotJumpToAlongTheWay() throws {
         let script = ScriptDocument(text: """
         In CP5046, you’ll work in a team to investigate a user-centred problem and develop an interactive solution through research, prototyping and feedback. You’ll begin with people, not code: learning what users need, testing assumptions and refining your ideas. Along the way, you’ll create prototypes.
