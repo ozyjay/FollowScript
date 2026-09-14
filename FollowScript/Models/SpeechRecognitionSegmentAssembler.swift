@@ -53,13 +53,13 @@ struct SpeechRecognitionSegmentAssembler: Sendable {
         markFinalisedSegments(through: finalizationTime)
 
         if isFinal {
-            segments.removeAll { rangesOverlap($0.range, audioTimeRange) }
+            segments.removeAll { Self.rangesOverlap($0.range, audioTimeRange) }
         } else {
-            segments.removeAll { !$0.isFinal && rangesOverlap($0.range, audioTimeRange) }
+            segments.removeAll { !$0.isFinal && Self.rangesOverlap($0.range, audioTimeRange) }
         }
 
         let isCoveredByFinalSegment = !isFinal && segments.contains {
-            $0.isFinal && range($0.range, contains: audioTimeRange)
+            $0.isFinal && Self.range($0.range, contains: audioTimeRange)
         }
 
         var insertedID: UInt64?
@@ -125,11 +125,11 @@ struct SpeechRecognitionSegmentAssembler: Sendable {
         }.joined(separator: " ")
     }
 
-    private func rangesOverlap(_ lhs: Range<TimeInterval>, _ rhs: Range<TimeInterval>) -> Bool {
+    private static func rangesOverlap(_ lhs: Range<TimeInterval>, _ rhs: Range<TimeInterval>) -> Bool {
         lhs.lowerBound < rhs.upperBound && rhs.lowerBound < lhs.upperBound
     }
 
-    private func range(_ outer: Range<TimeInterval>, contains inner: Range<TimeInterval>) -> Bool {
+    private static func range(_ outer: Range<TimeInterval>, contains inner: Range<TimeInterval>) -> Bool {
         outer.lowerBound <= inner.lowerBound + Self.timeEpsilon
             && outer.upperBound + Self.timeEpsilon >= inner.upperBound
     }
