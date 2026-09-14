@@ -8,6 +8,7 @@ enum SpeechAuthorisationStatus: Equatable, Sendable {
 }
 
 struct SpeechRecognitionUpdate: Equatable, Sendable {
+    /// Context assembled for alignment. On legacy recognition this is the recogniser text unchanged.
     let text: String
     let alternatives: [String]
     let isFinal: Bool
@@ -15,15 +16,21 @@ struct SpeechRecognitionUpdate: Equatable, Sendable {
     /// Seconds from the beginning of the recogniser's current audio stream.
     let audioTimeRange: Range<TimeInterval>?
     let confidence: Double?
+    /// Exact text emitted by the underlying recogniser before any rolling-context assembly.
+    let rawText: String
+    let rawAlternatives: [String]
 
     init(text: String, alternatives: [String] = [], isFinal: Bool, timestamp: Date,
-         audioTimeRange: Range<TimeInterval>? = nil, confidence: Double?) {
+         audioTimeRange: Range<TimeInterval>? = nil, confidence: Double?,
+         rawText: String? = nil, rawAlternatives: [String]? = nil) {
         self.text = text
         self.alternatives = alternatives
         self.isFinal = isFinal
         self.timestamp = timestamp
         self.audioTimeRange = audioTimeRange
         self.confidence = confidence
+        self.rawText = rawText ?? text
+        self.rawAlternatives = rawAlternatives ?? alternatives
     }
 }
 
