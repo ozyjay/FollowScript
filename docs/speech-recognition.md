@@ -6,11 +6,13 @@ The deployment target is iOS 18. On iOS 26 and later, `SpeechAnalyzer` with `Spe
 
 On iOS 18–25, `SFSpeechRecognizer` and `SFSpeechAudioBufferRecognitionRequest` provide partial results. `requiresOnDeviceRecognition` is true, and start fails with a user-readable state if the locale/device cannot satisfy that requirement.
 
-Both implementations conform to `SpeechRecognitionService`; SwiftUI never sees framework types. `MockSpeechRecognitionService` can yield deterministic updates and errors.
+Both implementations conform to `SpeechRecognitionService`; SwiftUI never sees framework types. `MockSpeechRecognitionService` can yield deterministic recognition and audio-level updates.
 
 ## Permissions and pipeline
 
-The generated Info.plist contains `NSMicrophoneUsageDescription` and `NSSpeechRecognitionUsageDescription`. Start requests speech permission and microphone record permission, configures a record/measurement audio session, installs one input-node tap, then starts recognition. Audio buffers remain in memory.
+The generated Info.plist contains `NSMicrophoneUsageDescription` and `NSSpeechRecognitionUsageDescription`. Start requests speech permission and microphone record permission, configures a record/measurement audio session, installs one input-node tap, then starts recognition. That same tap supplies a throttled RMS input-level meter and, only when the user presses Record, a local CAF audio file. No second tap or competing audio session is created.
+
+The meter maps approximately -60 dB to -12 dB onto a zero-to-one scale and labels the result Too quiet, Good or Too loud. These thresholds are practical guidance rather than a guarantee of recognition accuracy. Recording stops automatically when prompting is paused, backgrounded, interrupted or exited. Finished files are placed in the app's Documents/Recordings folder and can be exported with the system share sheet.
 
 SpeechAnalyzer does not transparently convert input. On the iOS 26 path, the tap receives the microphone’s natural PCM format—commonly 48 kHz Float32—and `SpeechAudioBufferConverter` uses `AVAudioConverter` to produce the analyser’s compatible format before creating `AnalyzerInput`. The current device-selected format is required to be signed 16-bit PCM; unsupported or failed conversion becomes a recoverable user-facing error instead of a Speech framework precondition failure. Converted inputs omit manual timestamps so resampling does not attach an incorrect source-rate time base.
 

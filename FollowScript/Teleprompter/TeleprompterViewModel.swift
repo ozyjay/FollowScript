@@ -1,6 +1,18 @@
 import Foundation
 import Combine
 
+enum MicrophoneLevelQuality: String, Equatable {
+    case quiet = "Too quiet"
+    case good = "Good"
+    case loud = "Too loud"
+
+    init(level: Double) {
+        if level < 0.22 { self = .quiet }
+        else if level > 0.88 { self = .loud }
+        else { self = .good }
+    }
+}
+
 @MainActor
 final class TeleprompterViewModel: ObservableObject {
     let script: ScriptDocument
@@ -13,12 +25,17 @@ final class TeleprompterViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var scrollTarget: Int?
     @Published private(set) var automaticFollowingSuspended = false
+    @Published private(set) var audioLevel = 0.0
+    @Published private(set) var isRecording = false
+    @Published private(set) var latestRecordingURL: URL?
+    @Published private(set) var recordingErrorMessage: String?
 
     private let service: any SpeechRecognitionService
     private let engine: ScriptAlignmentEngine
     private var recognitionTask: Task<Void, Never>?
     private var restartTask: Task<Void, Never>?
     private var followResumeTask: Task<Void, Never>?
+    private var audioLevelTask: Task<Void, Never>?
     private var lastScrollTarget: Int?
     private var wantsRecognition = false
 
@@ -35,11 +52,13 @@ final class TeleprompterViewModel: ObservableObject {
     var currentTokenIndex: Int? { alignmentState.tokenIndex }
     var confidence: Double { alignmentState.confidence }
     var trackingState: AlignmentTrackingState { alignmentState.trackingState }
+    var microphoneLevelQuality: MicrophoneLevelQuality { .init(level: audioLevel) }
 
     func start() {
         wantsRecognition = true
         errorMessage = nil
         launchRecognitionIfNeeded()
+        startMonitoringAudioLevel()
     }
 
     private func launchRecognitionIfNeeded() {
@@ -50,8 +69,10 @@ final class TeleprompterViewModel: ObservableObject {
     }
 
     func pause() {
+        finishRecording()
         wantsRecognition = false
         isListening = false
+        audioLevel = 0
         restartTask?.cancel()
         restartTask = nil
         recognitionTask?.cancel()
@@ -79,6 +100,28 @@ final class TeleprompterViewModel: ObservableObject {
         restartTask?.cancel()
         restartTask = nil
         followResumeTask?.cancel()
+        audioLevelTask?.cancel()
+        audioLevelTask = nil
+    }
+
+    func toggleRecording() {
+        if isRecording {
+            finishRecording()
+            return
+        }
+        do {
+            try service.startRecording()
+            latestRecordingURL = nil
+            recordingErrorMessage = nil
+            isRecording = true
+        } catch {
+            recordingErrorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "FollowScript could not start recording."
+        }
+    }
+
+    func clearRecordingError() {
+        recordingErrorMessage = nil
     }
 
     func userDidScroll() {
@@ -102,6 +145,7 @@ final class TeleprompterViewModel: ObservableObject {
 
     private func recognitionLoop() async {
         defer {
+            finishRecording()
             recognitionTask = nil
             isListening = false
         }
@@ -126,6 +170,33 @@ final class TeleprompterViewModel: ObservableObject {
             }
         }
         await service.stop()
+    }
+
+    private func startMonitoringAudioLevel() {
+        guard audioLevelTask == nil else { return }
+        audioLevelTask = Task { [weak self, service] in
+            for await event in service.audioInputEvents() {
+                guard !Task.isCancelled else { break }
+                switch event {
+                case .level(let level):
+                    self?.audioLevel = level
+                case .recordingFailed(let message):
+                    self?.isRecording = false
+                    self?.recordingErrorMessage = "The recording stopped because audio could not be saved: \(message)"
+                }
+            }
+        }
+    }
+
+    private func finishRecording() {
+        guard isRecording else { return }
+        do {
+            latestRecordingURL = try service.stopRecording()
+        } catch {
+            recordingErrorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "FollowScript could not finish the recording."
+        }
+        isRecording = false
     }
 
     private func consume(_ update: SpeechRecognitionUpdate) {

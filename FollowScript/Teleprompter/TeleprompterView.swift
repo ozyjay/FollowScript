@@ -94,6 +94,11 @@ struct TeleprompterView: View {
         } message: {
             Text(model.errorMessage ?? "Speech recognition could not start.")
         }
+        .alert("Audio recording needs attention", isPresented: recordingErrorBinding) {
+            Button("OK") { model.clearRecordingError() }
+        } message: {
+            Text(model.recordingErrorMessage ?? "FollowScript could not record audio.")
+        }
 #if DEBUG
         .sheet(isPresented: $showsDiagnostics) {
             DiagnosticsView(model: model)
@@ -103,45 +108,68 @@ struct TeleprompterView: View {
     }
 
     private var controls: some View {
-        HStack(spacing: 16) {
-            Button("Exit", systemImage: "xmark") {
-                model.stop()
-                onExit()
-            }
-            Spacer()
+        VStack(spacing: 8) {
+            HStack(spacing: 16) {
+                Button("Exit", systemImage: "xmark") {
+                    model.stop()
+                    onExit()
+                }
+                Spacer()
 #if DEBUG
-            Button("Diagnostics", systemImage: "ladybug") { showsDiagnostics = true }
+                Button("Diagnostics", systemImage: "ladybug") { showsDiagnostics = true }
 #endif
-            Button(
-                settings.mirrorsPrompt ? "Use normal prompt view" : "Mirror prompt",
-                systemImage: "arrow.left.and.right"
-            ) {
-                settings.mirrorsPrompt.toggle()
-            }
-            .accessibilityValue(settings.mirrorsPrompt ? "On" : "Off")
-            .accessibilityHint("Flips only the scrolling script for a teleprompter mirror")
+                Button(
+                    settings.mirrorsPrompt ? "Use normal prompt view" : "Mirror prompt",
+                    systemImage: "arrow.left.and.right"
+                ) {
+                    settings.mirrorsPrompt.toggle()
+                }
+                .accessibilityValue(settings.mirrorsPrompt ? "On" : "Off")
+                .accessibilityHint("Flips only the scrolling script for a teleprompter mirror")
 
-            Button(
-                settings.flipsPromptVertically ? "Use upright prompt" : "Flip prompt vertically",
-                systemImage: "arrow.up.and.down"
-            ) {
-                settings.flipsPromptVertically.toggle()
-            }
-            .accessibilityValue(settings.flipsPromptVertically ? "On" : "Off")
-            .accessibilityHint("Turns only the scrolling script upside down")
+                Button(
+                    settings.flipsPromptVertically ? "Use upright prompt" : "Flip prompt vertically",
+                    systemImage: "arrow.up.and.down"
+                ) {
+                    settings.flipsPromptVertically.toggle()
+                }
+                .accessibilityValue(settings.flipsPromptVertically ? "On" : "Off")
+                .accessibilityHint("Turns only the scrolling script upside down")
 
-            Button(
-                model.isListening ? "Pause" : "Resume",
-                systemImage: model.isListening ? "pause.fill" : "play.fill"
-            ) {
-                if model.isListening {
-                    pausedByUser = true
-                    model.pause()
-                } else {
-                    pausedByUser = false
-                    model.resume()
+                Button(
+                    model.isRecording ? "Stop recording" : "Record audio",
+                    systemImage: model.isRecording ? "stop.circle.fill" : "record.circle"
+                ) {
+                    model.toggleRecording()
+                }
+                .foregroundStyle(model.isRecording ? .red : .primary)
+                .disabled(!model.isListening && !model.isRecording)
+
+                if let recordingURL = model.latestRecordingURL {
+                    ShareLink(item: recordingURL) {
+                        Label("Share latest recording", systemImage: "square.and.arrow.up")
+                    }
+                }
+
+                Button(
+                    model.isListening ? "Pause" : "Resume",
+                    systemImage: model.isListening ? "pause.fill" : "play.fill"
+                ) {
+                    if model.isListening {
+                        pausedByUser = true
+                        model.pause()
+                    } else {
+                        pausedByUser = false
+                        model.resume()
+                    }
                 }
             }
+
+            MicrophoneLevelView(
+                level: model.audioLevel,
+                quality: model.microphoneLevelQuality,
+                isListening: model.isListening
+            )
         }
         .labelStyle(.iconOnly)
         .font(.title3)
@@ -195,6 +223,13 @@ struct TeleprompterView: View {
         Binding(get: { model.errorMessage != nil }, set: { _ in })
     }
 
+    private var recordingErrorBinding: Binding<Bool> {
+        Binding(
+            get: { model.recordingErrorMessage != nil },
+            set: { if !$0 { model.clearRecordingError() } }
+        )
+    }
+
     @MainActor
     private func beginManagingDisplaySleep() {
         if previousIdleTimerDisabled == nil {
@@ -216,6 +251,37 @@ struct TeleprompterView: View {
         guard let previousIdleTimerDisabled else { return }
         UIApplication.shared.isIdleTimerDisabled = previousIdleTimerDisabled
         self.previousIdleTimerDisabled = nil
+    }
+}
+
+private struct MicrophoneLevelView: View {
+    let level: Double
+    let quality: MicrophoneLevelQuality
+    let isListening: Bool
+
+    private var colour: Color {
+        guard isListening else { return .secondary }
+        switch quality {
+        case .quiet: return .orange
+        case .good: return .green
+        case .loud: return .red
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "mic.fill")
+            ProgressView(value: isListening ? level : 0)
+                .tint(colour)
+                .frame(maxWidth: 180)
+            Text(isListening ? quality.rawValue : "Paused")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(colour)
+                .frame(width: 64, alignment: .leading)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Microphone level")
+        .accessibilityValue(isListening ? quality.rawValue : "Paused")
     }
 }
 

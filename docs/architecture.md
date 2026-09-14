@@ -5,6 +5,8 @@ FollowScript separates framework I/O, deterministic domain logic and presentatio
 ```mermaid
 flowchart TD
     A[Microphone / AVAudioEngine] --> B[SpeechRecognitionService]
+    B --> H[Level meter]
+    B --> I[Optional local CAF recording]
     B --> C[SpeechRecognitionUpdate stream]
     C --> D[ScriptAlignmentEngine]
     D --> E[AlignmentState]
@@ -14,9 +16,9 @@ flowchart TD
 
 `ScriptTokenizer` retains each visible token, its normalised form, UTF-16 source range and paragraph index. `ScriptAlignmentEngine` accepts these values and plain recognition text; it imports no Speech or SwiftUI types.
 
-`SpeechRecognitionService` is a main-actor protocol returning an `AsyncThrowingStream`. `SpeechServiceFactory` selects the iOS 26 analyser backend or the iOS 18–25 legacy backend. `MockSpeechRecognitionService` is the test/development seam.
+`SpeechRecognitionService` is a main-actor protocol returning an `AsyncThrowingStream`, a lightweight audio-level stream and explicit recording controls. `SpeechServiceFactory` selects the iOS 26 analyser backend or the iOS 18–25 legacy backend. `MockSpeechRecognitionService` is the test/development seam. `MicrophoneCaptureMonitor` performs thread-safe metering and optional local file writes from the existing audio tap.
 
-`TeleprompterViewModel` owns session intent, recognition tasks, alignment state, errors and follow-suspension timing on the main actor. SwiftUI observes published state and decides only how to display it. `AppModel` owns the current script, settings and their `UserDefaults` persistence.
+`TeleprompterViewModel` owns session intent, recognition and level tasks, recording state, alignment state, errors and follow-suspension timing on the main actor. SwiftUI observes published state and decides only how to display it. `AppModel` owns the current script, settings and their `UserDefaults` persistence.
 
 `RootView` presents a brief in-app loading screen before the editor. It displays a presentation copy of the app icon and reads the current marketing version and Git-commit-count build number from the application bundle; it does not perform network or speech initialisation. The build-time mechanism is documented in `docs/versioning.md`.
 

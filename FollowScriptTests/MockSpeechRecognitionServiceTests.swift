@@ -50,6 +50,44 @@ final class MockSpeechRecognitionServiceTests: XCTestCase {
         XCTAssertEqual(service.startCount, 2)
         model.stop()
     }
+
+    func testAudioLevelUpdatesQuality() async throws {
+        let service = MockSpeechRecognitionService()
+        let model = TeleprompterViewModel(scriptText: "A short script.", service: service)
+
+        model.start()
+        try await Task.sleep(for: .milliseconds(30))
+        service.sendAudioLevel(0.5)
+        try await Task.sleep(for: .milliseconds(30))
+
+        XCTAssertEqual(model.audioLevel, 0.5)
+        XCTAssertEqual(model.microphoneLevelQuality, .good)
+        model.stop()
+    }
+
+    func testPausingFinalisesActiveRecording() async throws {
+        let service = MockSpeechRecognitionService()
+        service.recordingURL = URL(fileURLWithPath: "/tmp/test-recording.caf")
+        let model = TeleprompterViewModel(scriptText: "A short script.", service: service)
+
+        model.start()
+        try await Task.sleep(for: .milliseconds(30))
+        model.toggleRecording()
+        XCTAssertTrue(model.isRecording)
+
+        model.pause()
+
+        XCTAssertFalse(model.isRecording)
+        XCTAssertEqual(model.latestRecordingURL, service.recordingURL)
+        XCTAssertFalse(service.isRecording)
+        model.stop()
+    }
+
+    func testMicrophoneQualityThresholds() {
+        XCTAssertEqual(MicrophoneLevelQuality(level: 0.1), .quiet)
+        XCTAssertEqual(MicrophoneLevelQuality(level: 0.5), .good)
+        XCTAssertEqual(MicrophoneLevelQuality(level: 0.95), .loud)
+    }
 }
 
 @MainActor
@@ -58,6 +96,7 @@ private final class SlowStoppingSpeechRecognitionService: SpeechRecognitionServi
     private(set) var startCount = 0
     private(set) var startedDuringStop = false
     private var stopInProgress = false
+    private let eventStream = AsyncStream<AudioInputEvent> { _ in }
 
     func requestAuthorisation() async -> SpeechAuthorisationStatus { .authorised }
 
@@ -81,4 +120,8 @@ private final class SlowStoppingSpeechRecognitionService: SpeechRecognitionServi
         sessionContinuation?.finish()
         stopInProgress = false
     }
+
+    func audioInputEvents() -> AsyncStream<AudioInputEvent> { eventStream }
+    func startRecording() throws {}
+    func stopRecording() throws -> URL? { nil }
 }

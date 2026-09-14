@@ -37,6 +37,8 @@ private final class LegacySpeechRecognitionService: SpeechRecognitionService {
     private var task: SFSpeechRecognitionTask?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var continuation: AsyncThrowingStream<SpeechRecognitionUpdate, Error>.Continuation?
+    private let captureMonitor = MicrophoneCaptureMonitor()
+    private var microphoneFormat: AVAudioFormat?
 
     init(locale: Locale) {
         self.locale = locale
@@ -78,9 +80,11 @@ private final class LegacySpeechRecognitionService: SpeechRecognitionService {
             let inputNode = audioEngine.inputNode
             let format = inputNode.outputFormat(forBus: 0)
             guard format.sampleRate > 0 else { throw SpeechRecognitionError.audioInputUnavailable }
+            microphoneFormat = format
             try ensureCurrent(generation)
 
             inputNode.installTap(onBus: 0, bufferSize: 1_024, format: format) { buffer, _ in
+                self.captureMonitor.process(buffer)
                 request.append(buffer)
             }
             tapInstalled = true
@@ -124,6 +128,15 @@ private final class LegacySpeechRecognitionService: SpeechRecognitionService {
         await tearDownCurrentSession()
     }
 
+    func audioInputEvents() -> AsyncStream<AudioInputEvent> { captureMonitor.events() }
+
+    func startRecording() throws {
+        guard let microphoneFormat else { throw AudioRecordingError.microphoneNotRunning }
+        try captureMonitor.startRecording(format: microphoneFormat)
+    }
+
+    func stopRecording() throws -> URL? { captureMonitor.stopRecording() }
+
     private func ensureCurrent(_ generation: Int) throws {
         try Task.checkCancellation()
         guard generation == lifecycleGeneration else { throw CancellationError() }
@@ -136,6 +149,7 @@ private final class LegacySpeechRecognitionService: SpeechRecognitionService {
             tapInstalled = false
         }
         audioEngine.reset()
+        microphoneFormat = nil
         request?.endAudio()
         task?.cancel()
         request = nil
@@ -159,6 +173,8 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
     private var outputContinuation: AsyncThrowingStream<SpeechRecognitionUpdate, Error>.Continuation?
     private var analysisTask: Task<Void, Never>?
     private var resultsTask: Task<Void, Never>?
+    private let captureMonitor = MicrophoneCaptureMonitor()
+    private var microphoneFormat: AVAudioFormat?
 
     init(locale: Locale) {
         self.locale = locale
@@ -206,6 +222,7 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
             guard microphoneFormat.sampleRate > 0 else {
                 throw SpeechRecognitionError.audioInputUnavailable
             }
+            self.microphoneFormat = microphoneFormat
             guard let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(
                 compatibleWith: [transcriber],
                 considering: microphoneFormat
@@ -225,6 +242,7 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
             self.outputContinuation = outputContinuation
 
             inputNode.installTap(onBus: 0, bufferSize: 1_024, format: microphoneFormat) { buffer, _ in
+                self.captureMonitor.process(buffer)
                 do {
                     let convertedBuffer = try audioConverter.convert(buffer)
                     inputContinuation.yield(AnalyzerInput(buffer: convertedBuffer))
@@ -281,6 +299,15 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
         await tearDownCurrentSession()
     }
 
+    func audioInputEvents() -> AsyncStream<AudioInputEvent> { captureMonitor.events() }
+
+    func startRecording() throws {
+        guard let microphoneFormat else { throw AudioRecordingError.microphoneNotRunning }
+        try captureMonitor.startRecording(format: microphoneFormat)
+    }
+
+    func stopRecording() throws -> URL? { captureMonitor.stopRecording() }
+
     private func ensureCurrent(_ generation: Int) throws {
         try Task.checkCancellation()
         guard generation == lifecycleGeneration else { throw CancellationError() }
@@ -293,6 +320,7 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
             tapInstalled = false
         }
         audioEngine.reset()
+        microphoneFormat = nil
         inputContinuation?.finish()
         inputContinuation = nil
         let analyzerToCancel = analyzer

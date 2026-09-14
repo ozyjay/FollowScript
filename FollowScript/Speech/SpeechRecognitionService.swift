@@ -14,6 +14,11 @@ struct SpeechRecognitionUpdate: Equatable, Sendable {
     let confidence: Double?
 }
 
+enum AudioInputEvent: Equatable, Sendable {
+    case level(Double)
+    case recordingFailed(String)
+}
+
 enum SpeechRecognitionError: LocalizedError, Equatable {
     case permissionDenied
     case unavailable
@@ -45,4 +50,7 @@ protocol SpeechRecognitionService: AnyObject {
     func requestAuthorisation() async -> SpeechAuthorisationStatus
     func start() async throws -> AsyncThrowingStream<SpeechRecognitionUpdate, Error>
     func stop() async
+    func audioInputEvents() -> AsyncStream<AudioInputEvent>
+    func startRecording() throws
+    func stopRecording() throws -> URL?
 }

@@ -6,10 +6,11 @@ FollowScript requests microphone access and Apple speech-recognition authorisati
 
 - The current script is stored in app `UserDefaults`.
 - Font size, line spacing, alignment, highlighting, highlighted-text centring, prompt-flip and display-awake preferences are stored in `UserDefaults`.
+- Audio is stored in the app's Documents/Recordings folder only when the user explicitly starts recording. Finished recordings remain local unless the user exports them through the system share sheet.
 
 ## Not stored or added
 
-- Microphone audio is processed from in-memory buffers and is not written to disk.
+- Microphone audio used for speech following and level metering is otherwise processed from in-memory buffers and is not written to disk.
 - Recognised speech is held in view-model memory for the active session and debug display; it is not intentionally persisted.
 - There are no accounts, analytics SDKs, advertising identifiers, backend services, external LLMs or third-party speech APIs.
 - FollowScript does not implement script upload, cloud synchronisation or application-managed network transmission.

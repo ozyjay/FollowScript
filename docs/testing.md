@@ -10,7 +10,7 @@ swift test
 
 It compiles only `Models` and `Alignment`, then runs XCTest on macOS. This is the fastest alignment regression gate and needs no microphone, simulator or network.
 
-The Xcode project contains `FollowScriptTests`, including the same core tests, mock recognition stream tests, a rapid pause/resume lifecycle regression, audio-format regression and document-import fixtures. The lifecycle test holds cleanup open for 100 milliseconds and verifies that the replacement session cannot start concurrently. The conversion test repeatedly transforms 48 kHz Float32 microphone-style buffers into non-empty 16 kHz signed Int16 buffers. Import tests cover plain text, Markdown formatting removal, DEFLATE-compressed DOCX XML and stored ODT XML. Build without signing:
+The Xcode project contains `FollowScriptTests`, including the same core tests, mock recognition and audio-level stream tests, recording lifecycle tests, a rapid pause/resume lifecycle regression, audio-format regression and document-import fixtures. The lifecycle test holds cleanup open for 100 milliseconds and verifies that the replacement session cannot start concurrently. Recording coverage verifies that pause finalises an active recording, while level tests verify the visible quality thresholds. The conversion test repeatedly transforms 48 kHz Float32 microphone-style buffers into non-empty 16 kHz signed Int16 buffers. Import tests cover plain text, Markdown formatting removal, DEFLATE-compressed DOCX XML and stored ODT XML. Build without signing:
 
 ```sh
 xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -configuration Debug -sdk iphonesimulator -derivedDataPath /tmp/FollowScriptDerivedData CODE_SIGNING_ALLOWED=NO build
@@ -44,6 +44,8 @@ Recorded observation: on 13 September 2026, the user confirmed that physical-iPh
 - [ ] Pause/resume and repeated recognition restart (retest the duplicate-tap crash fix)
 - [ ] Ten-minute continuous speech and long pauses
 - [ ] Partial-result latency and alignment responsiveness
+- [ ] Microphone meter responds to silence, normal speech and clipping without distracting flicker
+- [ ] Start, stop, share and play a recording; confirm pause, background and exit finalise it
 - [ ] Horizontal, vertical and combined prompt-flip readability through the teleprompter glass in portrait and landscape
 - [ ] Omissions, repeated passages, an intentional paragraph skip and speech from behind the current position
 - [ ] Manual scrolling, delayed follow return and explicit return control

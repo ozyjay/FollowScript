@@ -3,6 +3,9 @@ import Foundation
 @MainActor
 final class MockSpeechRecognitionService: SpeechRecognitionService {
     private var continuation: AsyncThrowingStream<SpeechRecognitionUpdate, Error>.Continuation?
+    private var eventContinuation: AsyncStream<AudioInputEvent>.Continuation?
+    private(set) var isRecording = false
+    var recordingURL: URL?
 
     func requestAuthorisation() async -> SpeechAuthorisationStatus { .authorised }
 
@@ -15,6 +18,22 @@ final class MockSpeechRecognitionService: SpeechRecognitionService {
     func stop() async {
         continuation?.finish()
         continuation = nil
+    }
+
+    func audioInputEvents() -> AsyncStream<AudioInputEvent> {
+        let (stream, continuation) = AsyncStream<AudioInputEvent>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        eventContinuation = continuation
+        return stream
+    }
+
+    func startRecording() throws { isRecording = true }
+    func stopRecording() throws -> URL? {
+        isRecording = false
+        return recordingURL
+    }
+
+    func sendAudioLevel(_ level: Double) {
+        eventContinuation?.yield(.level(level))
     }
 
     func send(_ text: String, isFinal: Bool = false, confidence: Double? = nil) {
