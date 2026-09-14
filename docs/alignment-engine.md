@@ -29,7 +29,7 @@ Repetition is represented by keeping the current/nearby beam hypotheses and a lo
 
 ## Reacquisition and safety
 
-Tracking searches only the next 80 tokens. Two poor updates enter reacquisition and expand the search from the committed position to the end of the script. Tentative and committed distant movement share the distinctive-evidence guard, so a weak repeated phrase cannot flash the highlight elsewhere or move the viewport. A local update cannot advance beyond its recognised-token count plus four tokens; a genuine larger omission must first trigger reacquisition.
+Tracking searches only the next 80 tokens. Two poor updates enter reacquisition and expand the search from the committed position to the end of the script. Tentative and committed movement beyond the recognised-token count plus four tokens requires at least three recognised tokens, confidence of `0.74`, and distinctive coverage—even when the candidate is less than 80 tokens ahead. This prevents a retained distant beam hypothesis and a single common partial such as “you'll” from moving the prompt. A local update cannot exceed the same advance budget; a genuine larger omission must first trigger reacquisition and then provide distinctive evidence.
 
 A candidate at least five tokens ahead is treated as ambiguous when its lead over the runner-up is below `0.035`. It cannot change either the estimate or committed position until subsequent recognition creates a clearer margin. This leaves small continuous advances responsive while requiring materially stronger evidence for a jump.
 

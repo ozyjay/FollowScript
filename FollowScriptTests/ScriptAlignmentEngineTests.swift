@@ -288,6 +288,30 @@ final class ScriptAlignmentEngineTests: XCTestCase {
         XCTAssertNotNil(result.decisionTrace.scoreMargin)
     }
 
+    func testSingleCommonPartialCannotFollowDistantBeamDuringReacquisition() {
+        let filler = (1...25).map { "filler\($0)" }.joined(separator: " ")
+        let script = ScriptDocument(text: "anchor \(filler) you'll continue here")
+        let previous = AlignmentState(
+            tokenIndex: 0,
+            confidence: 0.2,
+            trackingState: .reacquiring,
+            lowConfidenceUpdates: 2,
+            hypotheses: [AlignmentHypothesis(tokenIndex: 26, score: 1)]
+        )
+
+        let result = engine.align(
+            script: script,
+            recognisedText: "you'll",
+            previous: previous,
+            isFinal: false
+        )
+
+        XCTAssertEqual(result.searchMode, .global)
+        XCTAssertEqual(result.committedTokenIndex, 0)
+        XCTAssertNil(result.matchedRange)
+        XCTAssertEqual(result.decisionTrace.reason, .distantJumpNeedsDistinctiveEvidence)
+    }
+
     func testIncrementalPartialTranscriptsAdvanceContinuously() {
         let script = ScriptDocument(text: "alpha beta gamma delta epsilon zeta")
         let first = engine.align(script: script, recognisedText: "alpha beta", isFinal: false)

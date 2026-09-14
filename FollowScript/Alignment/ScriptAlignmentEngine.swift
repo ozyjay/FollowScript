@@ -98,17 +98,21 @@ struct ScriptAlignmentEngine: Sendable {
         let threshold = useGlobalSearch ? configuration.reacquisitionThreshold : configuration.uncertainThreshold
         let accepted = confidence >= configuration.uncertainThreshold
 
-        let largeJump = previous.tokenIndex.map { abs(best.end - $0) > configuration.localLookAhead } ?? false
+        let forwardMovement = previous.tokenIndex.map { best.end - $0 }
+        let largeJump = forwardMovement.map { $0 > configuration.localLookAhead } ?? false
         let jumpHasEvidence = recognised.count >= 3 && confidence >= configuration.distinctiveJumpThreshold
             && distinctiveCoverage(recognised, scriptTokens: script.tokens.map(\.normalised), weights: weights) >= 0.45
-        let exceedsLocalAdvanceBudget = previous.tokenIndex.map {
-            !useGlobalSearch && best.end - $0 > recognised.count + configuration.localAdvanceSlack
+        let exceedsAdvanceBudget = forwardMovement.map {
+            $0 > recognised.count + configuration.localAdvanceSlack
         } ?? false
+        let exceedsLocalAdvanceBudget = !useGlobalSearch && exceedsAdvanceBudget
+        let globalJumpNeedsEvidence = useGlobalSearch && exceedsAdvanceBudget && !jumpHasEvidence
         let ambiguousJump = previous.tokenIndex.map {
             best.end - $0 >= configuration.ambiguousJumpDistance
                 && (scoreMargin ?? 1) < configuration.minimumCandidateScoreMargin
         } ?? false
         let estimateAllowed = accepted && !ambiguousJump && !exceedsLocalAdvanceBudget
+            && !globalJumpNeedsEvidence
             && (!largeJump || (useGlobalSearch && jumpHasEvidence))
         let estimatedIndex = estimateAllowed
             ? lagged(best.end, recognisedTokenCount: recognised.count, isFinal: isFinal)
@@ -116,6 +120,7 @@ struct ScriptAlignmentEngine: Sendable {
         let mayMove = accepted && !ambiguousJump
             && confidence >= (useGlobalSearch ? threshold : configuration.commitThreshold)
             && !exceedsLocalAdvanceBudget
+            && !globalJumpNeedsEvidence
             && (!largeJump || (useGlobalSearch && jumpHasEvidence))
         let selectedIndex: Int?
         if mayMove {
@@ -151,7 +156,7 @@ struct ScriptAlignmentEngine: Sendable {
             decisionReason = .ambiguousCandidates
         } else if exceedsLocalAdvanceBudget {
             decisionReason = .localAdvanceTooLarge
-        } else if largeJump && !(useGlobalSearch && jumpHasEvidence) {
+        } else if globalJumpNeedsEvidence || (largeJump && !(useGlobalSearch && jumpHasEvidence)) {
             decisionReason = .distantJumpNeedsDistinctiveEvidence
         } else {
             decisionReason = .accepted
