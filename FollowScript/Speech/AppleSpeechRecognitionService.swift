@@ -2,6 +2,17 @@ import AVFoundation
 import CoreMedia
 import Speech
 
+@available(iOS 26.0, *)
+enum FollowScriptSpeechTranscriberConfiguration {
+    static var stableProgressivePreset: SpeechTranscriber.Preset {
+        SpeechTranscriber.Preset(
+            transcriptionOptions: [],
+            reportingOptions: [.volatileResults, .alternativeTranscriptions],
+            attributeOptions: [.audioTimeRange]
+        )
+    }
+}
+
 @MainActor
 enum SpeechServiceFactory {
     static func live(locale: Locale = .current) -> any SpeechRecognitionService {
@@ -253,9 +264,10 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
             }
             try ensureCurrent(generation)
 
-            var preset = SpeechTranscriber.Preset.timeIndexedProgressiveTranscription
-            preset.reportingOptions.insert(.alternativeTranscriptions)
-            let transcriber = SpeechTranscriber(locale: supportedLocale, preset: preset)
+            let transcriber = SpeechTranscriber(
+                locale: supportedLocale,
+                preset: FollowScriptSpeechTranscriberConfiguration.stableProgressivePreset
+            )
             if let installation = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
                 try ensureCurrent(generation)
                 try await installation.downloadAndInstall()

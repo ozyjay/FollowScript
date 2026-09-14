@@ -2,7 +2,7 @@
 
 ## Selected APIs
 
-The deployment target is iOS 18. On iOS 26 and later, `SpeechAnalyzer` with `SpeechTranscriber(preset: .timeIndexedProgressiveTranscription)` consumes `AnalyzerInput` values derived from `AVAudioEngine`. The implementation checks locale support, installs any requested Apple language asset, reserves the locale, selects `SpeechAnalyzer.bestAvailableAudioFormat`, and emits volatile/final results through the app model.
+The deployment target is iOS 18. On iOS 26 and later, `SpeechAnalyzer` with an explicitly configured `SpeechTranscriber` consumes `AnalyzerInput` values derived from `AVAudioEngine`. The transcriber requests volatile progressive results, alternative transcriptions and audio time ranges, but omits `fastResults` to favour more stable and accurate partial recognition over the preset's lowest-latency bias. The implementation checks locale support, installs any requested Apple language asset, reserves the locale, selects `SpeechAnalyzer.bestAvailableAudioFormat`, and emits volatile/final results through the app model.
 
 On iOS 18–25, `SFSpeechRecognizer` and `SFSpeechAudioBufferRecognitionRequest` provide partial results. `requiresOnDeviceRecognition` is true, and start fails with a user-readable state if the locale/device cannot satisfy that requirement.
 
@@ -22,7 +22,7 @@ SpeechAnalyzer does not transparently convert input. On the iOS 26 path, the tap
 
 Partial and final framework results become `SpeechRecognitionUpdate` values containing primary text, optional alternatives, finality, receipt time, optional audio time range and optional confidence. The iOS 26 path supplies the transcriber result range and alternatives. The legacy path derives the latest segment's audio range and confidence. Alignment prefers audio-stream time for movement constraints and otherwise uses receipt time.
 
-The iOS 26 SDK also exposes `AnalysisContext.contextualStrings`. FollowScript does not yet pass script text into the recognition service, so contextual vocabulary is intentionally deferred rather than creating a hidden script/audio dependency. A follow-up should add an explicit bounded nearby-vocabulary method, refresh it after committed movement, and measure proper-noun gains and repeated-phrase bias.
+The iOS 26 SDK also exposes `AnalysisContext.contextualStrings`. FollowScript does not yet pass script text into the recognition service, so contextual vocabulary is intentionally deferred rather than creating a hidden script/audio dependency. A follow-up should add an explicit bounded nearby-vocabulary method, refresh it after committed movement, and measure proper-noun gains and repeated-phrase bias. The explicit no-fast-results configuration still needs physical-device comparison to quantify partial-result stability, accuracy and added latency.
 
 Pause, exit and background transitions stop the engine, remove the tap, finish/cancel recognition, close continuations and deactivate the audio session. Tap removal is tracked explicitly and does not depend on `AVAudioEngine.isRunning`, because an engine may be stopped while its input-node tap still exists.
 
