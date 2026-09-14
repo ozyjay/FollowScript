@@ -18,7 +18,9 @@ Tapping any script row presents a confirmation before changing the following pos
 
 Pause stops recognition/audio; Resume creates a fresh stream without resetting alignment. Exit cleans up and returns to editing. Backgrounding pauses; becoming active resumes if no session is listening. Permission or recognition errors show a plain-language alert with Try Again and Exit.
 
-Below the top controls, a live microphone meter labels the current input as Too quiet, Good or Too loud while listening. The labels are broad setup guidance for speech detection, not an accuracy score. An accessible Record control captures the same microphone input already used by recognition, turns red while active and becomes Stop recording. Pausing, backgrounding or exiting finishes an active recording. Once stopped, the latest locally saved CAF file can be exported with the system share sheet.
+Below the top controls, a live microphone meter labels the current input as Too quiet, Good or Too loud while listening. The system-provided input name appears under the meter, with external inputs visually distinguished from the iPhone microphone. The labels are broad setup guidance for speech detection, not an accuracy score. If an external input disconnects while prompting, a visible warning identifies the built-in input that iOS selected instead.
+
+An accessible Record control captures the same microphone input already used by recognition, turns red while active and becomes Stop recording. Pausing, backgrounding or exiting finishes an active recording. Once stopped, the latest locally saved CAF file can be exported with the system share sheet.
 
 The persisted “Keep display awake” option prevents iOS auto-lock only while the teleprompter is visible and the app is active. Backgrounding or exiting restores the idle-timer state that existed before the teleprompter opened. The option is off by default because preventing display sleep increases battery use.
 

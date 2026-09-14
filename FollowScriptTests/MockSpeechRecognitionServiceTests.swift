@@ -65,6 +65,35 @@ final class MockSpeechRecognitionServiceTests: XCTestCase {
         model.stop()
     }
 
+    func testExternalAudioInputIsVisibleAndDisconnectionWarns() async throws {
+        let service = MockSpeechRecognitionService()
+        let model = TeleprompterViewModel(scriptText: "A short script.", service: service)
+
+        model.start()
+        try await Task.sleep(for: .milliseconds(30))
+        service.sendAudioInput(name: "DJI Mic Mini Receiver", isExternal: true)
+        try await Task.sleep(for: .milliseconds(30))
+
+        XCTAssertEqual(
+            model.audioInput,
+            AudioInputDescriptor(name: "DJI Mic Mini Receiver", isExternal: true)
+        )
+        XCTAssertNil(model.audioInputWarning)
+
+        service.sendAudioInput(name: "iPhone Microphone", isExternal: false)
+        try await Task.sleep(for: .milliseconds(30))
+
+        XCTAssertEqual(
+            model.audioInput,
+            AudioInputDescriptor(name: "iPhone Microphone", isExternal: false)
+        )
+        XCTAssertEqual(
+            model.audioInputWarning,
+            "External microphone disconnected. Now using iPhone Microphone."
+        )
+        model.stop()
+    }
+
     func testPausingFinalisesActiveRecording() async throws {
         let service = MockSpeechRecognitionService()
         service.recordingURL = URL(fileURLWithPath: "/tmp/test-recording.caf")

@@ -28,6 +28,14 @@ private func requestSpeechAndMicrophoneAuthorisation() async -> SpeechAuthorisat
     return microphoneAllowed ? .authorised : .denied
 }
 
+private func currentAudioInput(in session: AVAudioSession) -> AudioInputDescriptor? {
+    guard let port = session.currentRoute.inputs.first else { return nil }
+    return AudioInputDescriptor(
+        name: port.portName,
+        isExternal: port.portType != .builtInMic
+    )
+}
+
 @MainActor
 private final class LegacySpeechRecognitionService: SpeechRecognitionService {
     private let locale: Locale
@@ -39,6 +47,7 @@ private final class LegacySpeechRecognitionService: SpeechRecognitionService {
     private var continuation: AsyncThrowingStream<SpeechRecognitionUpdate, Error>.Continuation?
     private let captureMonitor = MicrophoneCaptureMonitor()
     private var microphoneFormat: AVAudioFormat?
+    private var routeChangeTask: Task<Void, Never>?
 
     init(locale: Locale) {
         self.locale = locale
@@ -69,6 +78,8 @@ private final class LegacySpeechRecognitionService: SpeechRecognitionService {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
+            reportCurrentAudioInput()
+            monitorAudioRouteChanges()
 
             let request = SFSpeechAudioBufferRecognitionRequest()
             request.shouldReportPartialResults = true
@@ -137,12 +148,32 @@ private final class LegacySpeechRecognitionService: SpeechRecognitionService {
 
     func stopRecording() throws -> URL? { captureMonitor.stopRecording() }
 
+    private func reportCurrentAudioInput() {
+        if let input = currentAudioInput(in: .sharedInstance()) {
+            captureMonitor.reportInput(input)
+        }
+    }
+
+    private func monitorAudioRouteChanges() {
+        routeChangeTask?.cancel()
+        routeChangeTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(
+                named: AVAudioSession.routeChangeNotification
+            ) {
+                guard !Task.isCancelled else { return }
+                self?.reportCurrentAudioInput()
+            }
+        }
+    }
+
     private func ensureCurrent(_ generation: Int) throws {
         try Task.checkCancellation()
         guard generation == lifecycleGeneration else { throw CancellationError() }
     }
 
     private func tearDownCurrentSession() async {
+        routeChangeTask?.cancel()
+        routeChangeTask = nil
         audioEngine.stop()
         if tapInstalled {
             audioEngine.inputNode.removeTap(onBus: 0)
@@ -175,6 +206,7 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
     private var resultsTask: Task<Void, Never>?
     private let captureMonitor = MicrophoneCaptureMonitor()
     private var microphoneFormat: AVAudioFormat?
+    private var routeChangeTask: Task<Void, Never>?
 
     init(locale: Locale) {
         self.locale = locale
@@ -216,6 +248,8 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
+            reportCurrentAudioInput()
+            monitorAudioRouteChanges()
 
             let inputNode = audioEngine.inputNode
             let microphoneFormat = inputNode.outputFormat(forBus: 0)
@@ -308,12 +342,32 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
 
     func stopRecording() throws -> URL? { captureMonitor.stopRecording() }
 
+    private func reportCurrentAudioInput() {
+        if let input = currentAudioInput(in: .sharedInstance()) {
+            captureMonitor.reportInput(input)
+        }
+    }
+
+    private func monitorAudioRouteChanges() {
+        routeChangeTask?.cancel()
+        routeChangeTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(
+                named: AVAudioSession.routeChangeNotification
+            ) {
+                guard !Task.isCancelled else { return }
+                self?.reportCurrentAudioInput()
+            }
+        }
+    }
+
     private func ensureCurrent(_ generation: Int) throws {
         try Task.checkCancellation()
         guard generation == lifecycleGeneration else { throw CancellationError() }
     }
 
     private func tearDownCurrentSession() async {
+        routeChangeTask?.cancel()
+        routeChangeTask = nil
         audioEngine.stop()
         if tapInstalled {
             audioEngine.inputNode.removeTap(onBus: 0)

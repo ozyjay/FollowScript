@@ -192,8 +192,16 @@ struct TeleprompterView: View {
             MicrophoneLevelView(
                 level: model.audioLevel,
                 quality: model.microphoneLevelQuality,
-                isListening: model.isListening
+                isListening: model.isListening,
+                input: model.audioInput
             )
+
+            if let warning = model.audioInputWarning {
+                Label(warning, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .accessibilityLabel(warning)
+            }
         }
         .labelStyle(.iconOnly)
         .font(.title3)
@@ -295,6 +303,7 @@ private struct MicrophoneLevelView: View {
     let level: Double
     let quality: MicrophoneLevelQuality
     let isListening: Bool
+    let input: AudioInputDescriptor?
 
     private var colour: Color {
         guard isListening else { return .secondary }
@@ -306,19 +315,31 @@ private struct MicrophoneLevelView: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "mic.fill")
-            ProgressView(value: isListening ? level : 0)
-                .tint(colour)
-                .frame(maxWidth: 180)
-            Text(isListening ? quality.rawValue : "Paused")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(colour)
-                .frame(width: 64, alignment: .leading)
+        VStack(spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: "mic.fill")
+                ProgressView(value: isListening ? level : 0)
+                    .tint(colour)
+                    .frame(maxWidth: 180)
+                Text(isListening ? quality.rawValue : "Paused")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(colour)
+                    .frame(width: 64, alignment: .leading)
+            }
+            if let input {
+                Label(input.name, systemImage: input.isExternal ? "cable.connector" : "iphone")
+                    .font(.caption2)
+                    .foregroundStyle(input.isExternal ? .green : .secondary)
+                    .lineLimit(1)
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Microphone level")
-        .accessibilityValue(isListening ? quality.rawValue : "Paused")
+        .accessibilityValue(
+            [isListening ? quality.rawValue : "Paused", input?.name]
+                .compactMap { $0 }
+                .joined(separator: ", ")
+        )
     }
 }
 

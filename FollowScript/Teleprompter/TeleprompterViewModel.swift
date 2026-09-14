@@ -32,6 +32,8 @@ final class TeleprompterViewModel: ObservableObject {
     @Published private(set) var scrollTarget: Int?
     @Published private(set) var automaticFollowingSuspended = false
     @Published private(set) var audioLevel = 0.0
+    @Published private(set) var audioInput: AudioInputDescriptor?
+    @Published private(set) var audioInputWarning: String?
     @Published private(set) var isRecording = false
     @Published private(set) var latestRecordingURL: URL?
     @Published private(set) var recordingErrorMessage: String?
@@ -226,6 +228,13 @@ final class TeleprompterViewModel: ObservableObject {
                 switch event {
                 case .level(let level):
                     self?.audioLevel = level
+                case .inputChanged(let input):
+                    guard let self else { break }
+                    let lostExternalInput = self.audioInput?.isExternal == true && !input.isExternal
+                    self.audioInput = input
+                    self.audioInputWarning = lostExternalInput
+                        ? "External microphone disconnected. Now using \(input.name)."
+                        : nil
                 case .recordingFailed(let message):
                     self?.isRecording = false
                     self?.recordingErrorMessage = "The recording stopped because audio could not be saved: \(message)"
