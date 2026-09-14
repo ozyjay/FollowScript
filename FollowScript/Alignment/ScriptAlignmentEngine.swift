@@ -15,6 +15,7 @@ struct ScriptAlignmentEngine: Sendable {
         var minimumInitialPartialTokens = 2
         var singleTokenPartialResultLag = 1
         var localAdvanceSlack = 4
+        var localPersistenceScoreFloor = 0.35
         var beamWidth = 7
         var idfStrength = 0.28
         var repetitionPenalty = 0.10
@@ -76,12 +77,14 @@ struct ScriptAlignmentEngine: Sendable {
         let searchMode: AlignmentResult.SearchMode = useGlobalSearch ? .global : .local
         let bounds = searchBounds(scriptCount: script.tokens.count, previous: previous, global: useGlobalSearch)
         let weights = distinctivenessWeights(script.tokens.map(\.normalised))
+        let contextLookBehind = max(0, recognised.count - 1)
+        let minimumCandidateStart = previous.tokenIndex.map { max(0, $0 - contextLookBehind) } ?? 0
         let candidates = bestCandidates(
             scriptTokens: script.tokens.map(\.normalised),
             alternatives: alternatives,
             weights: weights,
             endBounds: bounds,
-            minimumCandidateStart: previous.tokenIndex ?? 0,
+            minimumCandidateStart: minimumCandidateStart,
             previousIndex: previous.tokenIndex,
             previousHypotheses: previous.hypotheses,
             global: useGlobalSearch,
@@ -141,7 +144,22 @@ struct ScriptAlignmentEngine: Sendable {
         } else {
             selectedIndex = previous.tokenIndex
         }
-        let lowConfidenceUpdates = mayMove ? 0 : previous.lowConfidenceUpdates + 1
+
+        let plausibleLocalHold = !useGlobalSearch && !mayMove && previous.tokenIndex.map { previousIndex in
+            let movement = best.end - previousIndex
+            let localPersistenceLimit = recognised.count + configuration.localAdvanceSlack
+            return movement >= 0
+                && movement <= localPersistenceLimit
+                && best.score >= configuration.localPersistenceScoreFloor
+                && !exceedsLocalAdvanceBudget
+        } ?? false
+        let lowConfidenceUpdates: Int
+        if mayMove || plausibleLocalHold {
+            lowConfidenceUpdates = 0
+        } else {
+            lowConfidenceUpdates = previous.lowConfidenceUpdates + 1
+        }
+
         let trackingState: AlignmentTrackingState
         if mayMove && confidence >= configuration.trackingThreshold {
             trackingState = .tracking
@@ -173,10 +191,11 @@ struct ScriptAlignmentEngine: Sendable {
         } else {
             decisionReason = .accepted
         }
+        let matchedStart = max(best.start, previous.tokenIndex ?? best.start)
         return AlignmentResult(
             estimatedTokenIndex: estimatedIndex,
             committedTokenIndex: selectedIndex,
-            matchedRange: estimateAllowed ? best.start...best.end : nil,
+            matchedRange: estimateAllowed ? matchedStart...best.end : nil,
             confidence: confidence,
             trackingState: trackingState,
             searchMode: searchMode,
@@ -337,9 +356,12 @@ struct ScriptAlignmentEngine: Sendable {
         let lag = !isFinal && recognisedTokenCount == 1 ? configuration.singleTokenPartialResultLag : 0
         return max(0, index - lag)
     }
+
     private func elapsed(current: TimeInterval?, previous: TimeInterval?) -> Double? {
-        guard let current, let previous, current >= previous else { return nil }; return min(10, current - previous)
+        guard let current, let previous, current >= previous else { return nil }
+        return min(10, current - previous)
     }
+
     private func updatedRate(previous: AlignmentState, committed: Int?, observationTime: TimeInterval?) -> Double? {
         guard let oldIndex = previous.committedTokenIndex, let committed, committed >= oldIndex,
               let interval = elapsed(current: observationTime, previous: previous.lastObservationTime), interval > 0 else {
@@ -384,14 +406,31 @@ struct ScriptAlignmentEngine: Sendable {
         observationTime: TimeInterval?,
         reason: AlignmentDecisionTrace.Reason
     ) -> AlignmentResult {
-        let lowConfidenceUpdates = previous.lowConfidenceUpdates + 1
+        let countsAsPositionalLoss = reason == .insufficientEvidence
+        let lowConfidenceUpdates = countsAsPositionalLoss
+            ? previous.lowConfidenceUpdates + 1
+            : previous.lowConfidenceUpdates
+        let trackingState: AlignmentTrackingState
+        if previous.tokenIndex == nil {
+            trackingState = .reacquiring
+        } else if !countsAsPositionalLoss {
+            trackingState = previous.trackingState
+        } else if lowConfidenceUpdates >= configuration.updatesBeforeGlobalSearch {
+            trackingState = .reacquiring
+        } else {
+            trackingState = .uncertain
+        }
+        let searchMode: AlignmentResult.SearchMode = previous.trackingState == .reacquiring
+            || previous.lowConfidenceUpdates >= configuration.updatesBeforeGlobalSearch
+            ? .global
+            : .local
         return AlignmentResult(
             estimatedTokenIndex: previous.estimatedTokenIndex,
             committedTokenIndex: previous.committedTokenIndex,
             matchedRange: nil,
             confidence: 0,
-            trackingState: previous.tokenIndex == nil ? .reacquiring : .uncertain,
-            searchMode: previous.trackingState == .reacquiring ? .global : .local,
+            trackingState: trackingState,
+            searchMode: searchMode,
             candidateScore: 0,
             decisionTrace: AlignmentDecisionTrace(
                 candidates: [],
@@ -402,7 +441,7 @@ struct ScriptAlignmentEngine: Sendable {
             state: AlignmentState(
                 tokenIndex: previous.tokenIndex,
                 confidence: 0,
-                trackingState: previous.tokenIndex == nil ? .reacquiring : .uncertain,
+                trackingState: trackingState,
                 lowConfidenceUpdates: lowConfidenceUpdates,
                 estimatedTokenIndex: previous.estimatedTokenIndex,
                 hypotheses: previous.hypotheses,
