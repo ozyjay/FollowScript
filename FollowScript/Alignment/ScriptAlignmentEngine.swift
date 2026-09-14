@@ -11,6 +11,7 @@ struct ScriptAlignmentEngine: Sendable {
         var updatesBeforeGlobalSearch = 2
         var minimumInitialPartialTokens = 2
         var partialResultTokenLag = 1
+        var localAdvanceSlack = 4
 
         static let standard = Configuration()
     }
@@ -64,7 +65,12 @@ struct ScriptAlignmentEngine: Sendable {
 
         let largeJump = previous.tokenIndex.map { abs(best.end - $0) > configuration.localLookAhead } ?? false
         let jumpHasEvidence = recognised.count >= 3 && confidence >= configuration.reacquisitionThreshold
-        let mayMove = accepted && (!largeJump || (useGlobalSearch && jumpHasEvidence))
+        let exceedsLocalAdvanceBudget = previous.tokenIndex.map {
+            !useGlobalSearch && best.end - $0 > recognised.count + configuration.localAdvanceSlack
+        } ?? false
+        let mayMove = accepted
+            && !exceedsLocalAdvanceBudget
+            && (!largeJump || (useGlobalSearch && jumpHasEvidence))
         let selectedIndex: Int?
         if mayMove {
             let lag = isFinal ? 0 : configuration.partialResultTokenLag

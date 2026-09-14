@@ -134,6 +134,52 @@ final class ScriptAlignmentEngineTests: XCTestCase {
         XCTAssertEqual(result.matchedRange, 1...1)
     }
 
+    func testParaphrasedPeoplePhraseDoesNotJumpToAlongTheWay() throws {
+        let script = ScriptDocument(text: """
+        In CP5046, you’ll work in a team to investigate a user-centred problem and develop an interactive solution through research, prototyping and feedback. You’ll begin with people, not code: learning what users need, testing assumptions and refining your ideas. Along the way, you’ll create prototypes.
+        """)
+        let feedback = try XCTUnwrap(script.tokens.first { $0.normalised == "feedback" }?.index)
+        let people = try XCTUnwrap(script.tokens.first { $0.normalised == "people" }?.index)
+        let way = try XCTUnwrap(script.tokens.first { $0.normalised == "way" }?.index)
+        let previous = AlignmentState(
+            tokenIndex: feedback,
+            confidence: 0.9,
+            trackingState: .tracking,
+            lowConfidenceUpdates: 0
+        )
+
+        let result = engine.align(
+            script: script,
+            recognisedText: "you'll start with people",
+            previous: previous,
+            isFinal: false
+        )
+
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(result.tokenIndex), feedback)
+        XCTAssertLessThanOrEqual(try XCTUnwrap(result.tokenIndex), people)
+        XCTAssertNotEqual(result.tokenIndex, way)
+    }
+
+    func testShortLocalUpdateCannotAuthoriseDistantAdvance() {
+        let script = ScriptDocument(text: "current one two three four five six seven eight nine distant phrase")
+        let previous = AlignmentState(
+            tokenIndex: 0,
+            confidence: 0.9,
+            trackingState: .tracking,
+            lowConfidenceUpdates: 0
+        )
+
+        let result = engine.align(
+            script: script,
+            recognisedText: "distant phrase",
+            previous: previous,
+            isFinal: false
+        )
+
+        XCTAssertEqual(result.tokenIndex, 0)
+        XCTAssertNil(result.matchedRange)
+    }
+
     func testSingleWordPartialCannotPrematurelyAnchorSubjectTitle() {
         let script = ScriptDocument(text: "Hello, and welcome to CP5046: ICT Project 1 - Analysis and Design. I’m Jason Holdsworth.")
 
