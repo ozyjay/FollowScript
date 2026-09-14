@@ -31,6 +31,19 @@ xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -destination 'pl
 - Simulator XCTest: mock and app-host integration; not microphone quality.
 - Physical iPhone: permissions, actual models/audio, interruptions, latency, scrolling and orientation.
 
+## Comparing tracking latency on an iPhone
+
+FollowScript emits Apple-native signposts in the `TrackingLatency` category for every recognition update. Use Instruments with the Points of Interest instrument and filter for the FollowScript process/category. Each update has a shared signpost identifier and four markers:
+
+- `Recognition Result Arrival`: the result reached the main-actor tracking pipeline.
+- `Alignment`: synchronous time spent in `ScriptAlignmentEngine.align`.
+- `UI State Commit`: time from alignment completion until SwiftUI has processed the published tracking state on a subsequent main-actor turn. This is a practical SwiftUI commit proxy, not a measurement of completed GPU presentation or the 0.20-second scroll animation.
+- `Tracking Total`: result arrival through that UI commit proxy.
+
+Updates superseded before SwiftUI processes them are labelled `superseded=1` and should not be included in latency averages. To provide a quick console check without logging every result, the app's unified `TrackingLatency` log reports mean alignment, mean UI-commit, mean total and maximum total latency once per 20 committed updates.
+
+For a Debug/Release comparison, use the same physical iPhone, iOS version, script, microphone route and speaking passage. Make separate clean runs for each configuration, exclude first-start language-asset installation, record thermal state if either run warms the phone, and compare the same signpost intervals and completed-update counts. Prefer the Instruments distributions over a single console summary. Release instrumentation remains enabled and uses no file, network or third-party analytics storage.
+
 ## Physical-iPhone checklist
 
 Record device, iOS, locale, date and observations rather than merely ticking boxes.
@@ -44,6 +57,7 @@ Recorded observation: on 13 September 2026, the user confirmed that physical-iPh
 - [ ] Pause/resume and repeated recognition restart (retest the duplicate-tap crash fix)
 - [ ] Ten-minute continuous speech and long pauses
 - [ ] Partial-result latency and alignment responsiveness
+- [ ] Capture `TrackingLatency` signposts for the same passage in Debug and Release; compare Alignment, UI State Commit and Tracking Total distributions
 - [ ] Compare iOS 26 partial-result stability and accuracy with `fastResults` omitted, and record any latency increase
 - [ ] Tracking pill distinguishes quiet input, heard speech, recognition and reacquisition accurately
 - [ ] Microphone check measures ambient level, recognises its script phrase and gives useful guidance

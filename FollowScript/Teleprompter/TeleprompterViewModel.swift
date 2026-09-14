@@ -1,5 +1,142 @@
 import Foundation
 import Combine
+import os
+
+@MainActor
+private final class TrackingLatencyInstrument {
+    private struct PendingUpdate {
+        let sequence: UInt64
+        let signpostID: OSSignpostID
+        let arrivalNanoseconds: UInt64
+        let alignmentCompletedNanoseconds: UInt64
+    }
+
+    private static let log = OSLog(
+        subsystem: Bundle.main.bundleIdentifier ?? "FollowScript",
+        category: "TrackingLatency"
+    )
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "FollowScript",
+        category: "TrackingLatency"
+    )
+    private static let summaryInterval = 20
+
+    private var nextSequence: UInt64 = 0
+    private var pending: PendingUpdate?
+    private var completedCount = 0
+    private var alignmentTotalMilliseconds = 0.0
+    private var uiCommitTotalMilliseconds = 0.0
+    private var totalMaximumMilliseconds = 0.0
+
+    func beginRecognitionUpdate(characterCount: Int, isFinal: Bool) -> (sequence: UInt64, signpostID: OSSignpostID, arrival: UInt64) {
+        closeSupersededUpdateIfNeeded()
+        nextSequence &+= 1
+        let signpostID = OSSignpostID(log: Self.log)
+        let arrival = DispatchTime.now().uptimeNanoseconds
+        os_signpost(
+            .event,
+            log: Self.log,
+            name: "Recognition Result Arrival",
+            signpostID: signpostID,
+            "sequence=%llu characters=%d final=%{public}d",
+            nextSequence,
+            characterCount,
+            isFinal
+        )
+        os_signpost(.begin, log: Self.log, name: "Tracking Total", signpostID: signpostID, "sequence=%llu", nextSequence)
+        os_signpost(.begin, log: Self.log, name: "Alignment", signpostID: signpostID, "sequence=%llu", nextSequence)
+        return (nextSequence, signpostID, arrival)
+    }
+
+    func alignmentCompleted(sequence: UInt64, signpostID: OSSignpostID, arrival: UInt64) {
+        let completed = DispatchTime.now().uptimeNanoseconds
+        let alignmentMilliseconds = milliseconds(from: arrival, to: completed)
+        os_signpost(
+            .end,
+            log: Self.log,
+            name: "Alignment",
+            signpostID: signpostID,
+            "sequence=%llu duration_ms=%.3f",
+            sequence,
+            alignmentMilliseconds
+        )
+        os_signpost(.begin, log: Self.log, name: "UI State Commit", signpostID: signpostID, "sequence=%llu", sequence)
+        pending = PendingUpdate(
+            sequence: sequence,
+            signpostID: signpostID,
+            arrivalNanoseconds: arrival,
+            alignmentCompletedNanoseconds: completed
+        )
+    }
+
+    func uiStateDidCommit(sequence: UInt64) {
+        guard let pending, pending.sequence == sequence else { return }
+        let committed = DispatchTime.now().uptimeNanoseconds
+        let alignmentMilliseconds = milliseconds(
+            from: pending.arrivalNanoseconds,
+            to: pending.alignmentCompletedNanoseconds
+        )
+        let uiCommitMilliseconds = milliseconds(
+            from: pending.alignmentCompletedNanoseconds,
+            to: committed
+        )
+        let totalMilliseconds = milliseconds(from: pending.arrivalNanoseconds, to: committed)
+        os_signpost(
+            .end,
+            log: Self.log,
+            name: "UI State Commit",
+            signpostID: pending.signpostID,
+            "sequence=%llu duration_ms=%.3f",
+            sequence,
+            uiCommitMilliseconds
+        )
+        os_signpost(
+            .end,
+            log: Self.log,
+            name: "Tracking Total",
+            signpostID: pending.signpostID,
+            "sequence=%llu duration_ms=%.3f",
+            sequence,
+            totalMilliseconds
+        )
+        self.pending = nil
+        recordSummarySample(
+            alignmentMilliseconds: alignmentMilliseconds,
+            uiCommitMilliseconds: uiCommitMilliseconds,
+            totalMilliseconds: totalMilliseconds
+        )
+    }
+
+    private func closeSupersededUpdateIfNeeded() {
+        guard let pending else { return }
+        os_signpost(.end, log: Self.log, name: "UI State Commit", signpostID: pending.signpostID, "superseded=1")
+        os_signpost(.end, log: Self.log, name: "Tracking Total", signpostID: pending.signpostID, "superseded=1")
+        self.pending = nil
+    }
+
+    private func recordSummarySample(
+        alignmentMilliseconds: Double,
+        uiCommitMilliseconds: Double,
+        totalMilliseconds: Double
+    ) {
+        completedCount += 1
+        alignmentTotalMilliseconds += alignmentMilliseconds
+        uiCommitTotalMilliseconds += uiCommitMilliseconds
+        totalMaximumMilliseconds = max(totalMaximumMilliseconds, totalMilliseconds)
+        guard completedCount == Self.summaryInterval else { return }
+        Self.logger.info(
+            "Tracking latency over \(self.completedCount, privacy: .public) committed updates: alignment mean \(self.alignmentTotalMilliseconds / Double(self.completedCount), format: .fixed(precision: 2), privacy: .public) ms, UI commit mean \(self.uiCommitTotalMilliseconds / Double(self.completedCount), format: .fixed(precision: 2), privacy: .public) ms, total mean \((self.alignmentTotalMilliseconds + self.uiCommitTotalMilliseconds) / Double(self.completedCount), format: .fixed(precision: 2), privacy: .public) ms, total max \(self.totalMaximumMilliseconds, format: .fixed(precision: 2), privacy: .public) ms"
+        )
+        completedCount = 0
+        alignmentTotalMilliseconds = 0
+        uiCommitTotalMilliseconds = 0
+        totalMaximumMilliseconds = 0
+    }
+
+    private func milliseconds(from start: UInt64, to end: UInt64) -> Double {
+        Double(end - start) / 1_000_000
+    }
+}
 
 enum MicrophoneLevelQuality: String, Equatable {
     case quiet = "Quiet"
@@ -71,6 +208,7 @@ final class TeleprompterViewModel: ObservableObject {
     @Published private(set) var microphoneGain = MicrophoneGainState(isAdjustable: false, value: 1)
     @Published private(set) var microphoneCheckPhase: MicrophoneCheckPhase = .idle
     @Published private(set) var microphoneCheckResult: MicrophoneCheckResult?
+    @Published private(set) var trackingMeasurementSequence: UInt64 = 0
 
     private let service: any SpeechRecognitionService
     private let engine: ScriptAlignmentEngine
@@ -92,6 +230,7 @@ final class TeleprompterViewModel: ObservableObject {
     private var microphoneCheckPeak = 0.0
     private var microphoneCheckInitialText = ""
     private var microphoneCheckSawAlignment = false
+    private let trackingLatency = TrackingLatencyInstrument()
 
     init(
         scriptText: String,
@@ -399,6 +538,10 @@ final class TeleprompterViewModel: ObservableObject {
     }
 
     private func consume(_ update: SpeechRecognitionUpdate) {
+        let measurement = trackingLatency.beginRecognitionUpdate(
+            characterCount: update.text.count,
+            isFinal: update.isFinal
+        )
         recognisedText = update.text
         lastRecognitionAt = Date()
         speechWithoutRecognitionStartedAt = nil
@@ -412,6 +555,11 @@ final class TeleprompterViewModel: ObservableObject {
             isFinal: update.isFinal,
             observationTime: update.audioTimeRange?.upperBound ?? update.timestamp.timeIntervalSinceReferenceDate
         )
+        trackingLatency.alignmentCompleted(
+            sequence: measurement.sequence,
+            signpostID: measurement.signpostID,
+            arrival: measurement.arrival
+        )
         alignmentState = result.state
         matchedRange = result.matchedRange
         isCurrentMatchPartial = !update.isFinal && result.matchedRange != nil
@@ -421,8 +569,14 @@ final class TeleprompterViewModel: ObservableObject {
             microphoneCheckSawAlignment = true
         }
 
-        guard let tokenIndex = result.committedTokenIndex, !automaticFollowingSuspended else { return }
-        requestScroll(towards: tokenIndex)
+        if let tokenIndex = result.committedTokenIndex, !automaticFollowingSuspended {
+            requestScroll(towards: tokenIndex)
+        }
+        trackingMeasurementSequence = measurement.sequence
+    }
+
+    func trackingUIStateDidCommit(sequence: UInt64) {
+        trackingLatency.uiStateDidCommit(sequence: sequence)
     }
 
     private func consumeMicrophoneLevelForCheck(_ level: Double) {
