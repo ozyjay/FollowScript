@@ -29,6 +29,15 @@ final class ScriptTokenizerTests: XCTestCase {
         XCTAssertEqual(tokenizer.recognitionTokens("Um, hello... UH world"), ["hello", "world"])
     }
 
+    func testAllPunctuationSeparatesWordsWithoutBecomingMatchableContent() {
+        let punctuated = "alpha-beta:gamma/delta;epsilon—zeta…eta¿theta¡iota (kappa) [lambda] {mu}"
+
+        XCTAssertEqual(
+            tokenizer.recognitionTokens(punctuated),
+            ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa", "lambda", "mu"]
+        )
+    }
+
     func testEmptyAndShortScripts() {
         XCTAssertTrue(tokenizer.tokenise(" \n ").isEmpty)
         XCTAssertEqual(tokenizer.tokenise("Go!").first?.displayText, "Go!")
