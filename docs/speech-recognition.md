@@ -20,7 +20,25 @@ After the audio session becomes active, each backend reports whether the selecte
 
 SpeechAnalyzer does not transparently convert input. On the iOS 26 path, the tap receives the microphone’s natural PCM format—commonly 48 kHz Float32—and `SpeechAudioBufferConverter` uses `AVAudioConverter` to produce the analyser’s compatible format before creating `AnalyzerInput`. The current device-selected format is required to be signed 16-bit PCM; unsupported or failed conversion becomes a recoverable user-facing error instead of a Speech framework precondition failure. Converted inputs omit manual timestamps so resampling does not attach an incorrect source-rate time base.
 
-Partial and final framework results become `SpeechRecognitionUpdate` values containing primary text, optional alternatives, finality, receipt time, optional audio time range and optional confidence. The iOS 26 path supplies the transcriber result range and alternatives. The legacy path derives the latest segment's audio range and confidence. Alignment prefers audio-stream time for movement constraints and otherwise uses receipt time.
+## Streaming transcription context
+
+`SpeechTranscriber` results are time-ranged phrases rather than one guaranteed cumulative transcript. With volatile results enabled, Apple may emit several revisions for the same audio range before that range is finalised, and later speech can arrive as separate short final phrases. `SpeechRecognitionSegmentAssembler` therefore reconstructs a short rolling chronological context before alignment.
+
+For each iOS 26 result, the assembler uses `result.range`, `result.isFinal` and `result.resultsFinalizationTime`:
+
+- a newer volatile result replaces an earlier volatile result whose audio range overlaps it;
+- a final result replaces earlier revisions over the same range;
+- `resultsFinalizationTime` promotes retained earlier segments to final even when Apple never re-emits that range with `isFinal == true`;
+- adjacent final and active volatile phrases are concatenated in audio order;
+- alternatives for the current phrase receive the same preceding context, so primary and alternative hypotheses remain comparable;
+- at most 32 result segments are retained in memory, while `ScriptAlignmentEngine` still applies its existing final 16-token recognition window;
+- the assembler resets whenever the recognition session is torn down, so context never leaks across pause/restart sessions.
+
+This turns raw sequences such as `"ICT Project"`, `"One, Analysis"`, `"and"`, `"Design."` into rolling alignment context equivalent to `"ICT Project One, Analysis and Design."`. It does not concatenate by string prefix and it does not alter the alignment engine's monotonic-position or distant-jump safeguards.
+
+`SpeechRecognitionUpdate.text` and `.alternatives` contain the assembled alignment context on iOS 26. `rawText` and `rawAlternatives` preserve the exact current framework result for diagnostics. The legacy recogniser already reports a cumulative formatted transcription, so its assembled and raw values are identical and it does not use the segment assembler.
+
+Partial and final framework results become `SpeechRecognitionUpdate` values containing primary text, optional alternatives, finality, receipt time, optional audio time range and optional confidence. The iOS 26 path supplies the assembled context range ending at the latest transcriber result; the legacy path derives the latest segment's audio range and confidence. Alignment prefers audio-stream time for movement constraints and otherwise uses receipt time.
 
 The iOS 26 SDK also exposes `AnalysisContext.contextualStrings`. FollowScript does not yet pass script text into the recognition service, so contextual vocabulary is intentionally deferred rather than creating a hidden script/audio dependency. A follow-up should add an explicit bounded nearby-vocabulary method, refresh it after committed movement, and measure proper-noun gains and repeated-phrase bias. The explicit no-fast-results configuration still needs physical-device comparison to quantify partial-result stability, accuracy and added latency.
 
@@ -32,4 +50,4 @@ Each Apple backend assigns a monotonically increasing generation to start/stop r
 
 The legacy path explicitly requires on-device recognition. The iOS 26 SpeechAnalyzer architecture uses downloaded Apple speech assets, but framework/OS implementation remains Apple-controlled. FollowScript has no cloud speech integration and does not send script text to any endpoint. This code-level review does not prove every OS/device combination is offline.
 
-The source was compiled against the iOS 26.5 SDK. Physical-device traces exposed two precondition failures: an overlapping-session duplicate tap and unconverted Float32 microphone samples passed to an Int16-only analyser. Generation ownership, unconditional tracked tap removal, explicit compatible-format conversion and regression tests were added. On 13 September 2026, the user confirmed that live physical-iPhone recognition worked after the PCM fix without the signed-Int16 failure; device model, OS version and locale were not recorded. Pause/resume lifecycle retesting, live accuracy, model installation, partial-result latency, interruption recovery and USB-C receiver routing remain unverified. Simulator behaviour is not accepted as device verification. Follow `.skills/speech-recognition/SKILL.md` for changes.
+The source was compiled against the iOS 26.5 SDK. Physical-device traces exposed two precondition failures: an overlapping-session duplicate tap and unconverted Float32 microphone samples passed to an Int16-only analyser. Generation ownership, unconditional tracked tap removal, explicit compatible-format conversion and regression tests were added. On 13 September 2026, the user confirmed that live physical-iPhone recognition worked after the PCM fix without the signed-Int16 failure; device model, OS version and locale were not recorded. Later device traces showed that SpeechTranscriber commonly finalises adjacent phrases separately; the time-ranged segment assembler was added in response. Pause/resume lifecycle retesting, live assembled-context behaviour, model installation, interruption recovery and USB-C receiver routing remain unverified. Simulator behaviour is not accepted as device verification. Follow `.skills/speech-recognition/SKILL.md` for changes.
