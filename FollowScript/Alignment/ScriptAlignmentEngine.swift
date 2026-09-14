@@ -21,6 +21,8 @@ struct ScriptAlignmentEngine: Sendable {
         var skipPenaltyPerToken = 0.012
         var distantJumpPenalty = 0.12
         var minimumCandidateScoreMargin = 0.035
+        var candidateClusterRadius = 3
+        var continuityPreferenceMargin = 0.05
         var ambiguousJumpDistance = 5
         var forwardContinuityBonus = 0.035
         var backwardTransitionPenalty = 0.28
@@ -86,11 +88,19 @@ struct ScriptAlignmentEngine: Sendable {
             elapsed: elapsed(current: observationTime, previous: previous.lastObservationTime),
             speakingRate: previous.speakingRateTokensPerSecond
         )
-        guard let best = candidates.first else {
+        guard let rawBest = candidates.first else {
             return unchangedResult(previous: previous, observationTime: observationTime, reason: .insufficientEvidence)
         }
 
-        let scoreMargin = candidates.dropFirst().first.map { best.score - $0.score }
+        let best = continuityPreferredCandidate(
+            candidates,
+            previousIndex: previous.tokenIndex,
+            recognisedTokenCount: recognised.count,
+            global: useGlobalSearch
+        ) ?? rawBest
+        let continuityPreferenceApplied = best.end != rawBest.end
+        let competingCluster = bestDistantCompetitor(to: best, in: candidates)
+        let scoreMargin = competingCluster.map { best.score - $0.score }
 
         let evidence = min(1, Double(Set(recognised).count) / 5.0)
         let finalBoost = isFinal ? 0.03 : 0
@@ -108,7 +118,9 @@ struct ScriptAlignmentEngine: Sendable {
         let exceedsLocalAdvanceBudget = !useGlobalSearch && exceedsAdvanceBudget
         let globalJumpNeedsEvidence = useGlobalSearch && exceedsAdvanceBudget && !jumpHasEvidence
         let ambiguousJump = previous.tokenIndex.map {
-            best.end - $0 >= configuration.ambiguousJumpDistance
+            !continuityPreferenceApplied
+                && best.end - $0 >= configuration.ambiguousJumpDistance
+                && competingCluster != nil
                 && (scoreMargin ?? 1) < configuration.minimumCandidateScoreMargin
         } ?? false
         let estimateAllowed = accepted && !ambiguousJump && !exceedsLocalAdvanceBudget
@@ -195,6 +207,38 @@ struct ScriptAlignmentEngine: Sendable {
         let start: Int
         let end: Int
         let score: Double
+    }
+
+    private func continuityPreferredCandidate(
+        _ candidates: [Candidate],
+        previousIndex: Int?,
+        recognisedTokenCount: Int,
+        global: Bool
+    ) -> Candidate? {
+        guard let rawBest = candidates.first else { return nil }
+        guard !global, let previousIndex else { return rawBest }
+
+        let continuityLimit = recognisedTokenCount + 1
+        let rawMovement = rawBest.end - previousIndex
+        guard rawMovement > continuityLimit else { return rawBest }
+
+        let nearbyBest = candidates
+            .filter { candidate in
+                let movement = candidate.end - previousIndex
+                return movement >= 0 && movement <= continuityLimit
+            }
+            .max { $0.score < $1.score }
+        guard let nearbyBest else { return rawBest }
+
+        return rawBest.score - nearbyBest.score <= configuration.continuityPreferenceMargin
+            ? nearbyBest
+            : rawBest
+    }
+
+    private func bestDistantCompetitor(to candidate: Candidate, in candidates: [Candidate]) -> Candidate? {
+        candidates.first {
+            abs($0.end - candidate.end) > configuration.candidateClusterRadius
+        }
     }
 
     private func bestCandidates(

@@ -22,6 +22,7 @@ let package = Package(
             path: "FollowScriptTests",
             exclude: ["MockSpeechRecognitionServiceTests.swift"],
             sources: [
+                "AlignmentClusterTests.swift",
                 "AlignmentFixtures.swift",
                 "ScriptAlignmentEngineTests.swift",
                 "ScriptTokenizerTests.swift"
