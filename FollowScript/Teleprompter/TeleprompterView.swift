@@ -248,6 +248,11 @@ struct TeleprompterView: View {
             if settings.highlightsActivePhrase, token.index == model.currentTokenIndex {
                 piece.foregroundColor = .yellow
                 piece.backgroundColor = Color.yellow.opacity(0.14)
+            } else if settings.highlightsActivePhrase,
+                      let partialRange = model.partialMatchedRange,
+                      partialRange.contains(token.index) {
+                piece.foregroundColor = Color.yellow.opacity(0.72)
+                piece.backgroundColor = Color.yellow.opacity(0.07)
             } else if let current = model.currentTokenIndex, token.index < current {
                 piece.foregroundColor = Color.white.opacity(0.48)
             }

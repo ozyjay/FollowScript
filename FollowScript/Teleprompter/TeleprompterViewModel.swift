@@ -54,6 +54,7 @@ final class TeleprompterViewModel: ObservableObject {
     @Published private(set) var alignmentState = AlignmentState.initial
     @Published private(set) var recognisedText = ""
     @Published private(set) var matchedRange: ClosedRange<Int>?
+    @Published private(set) var isCurrentMatchPartial = false
     @Published private(set) var searchMode: AlignmentResult.SearchMode = .global
     @Published private(set) var candidateScore = 0.0
     @Published private(set) var isListening = false
@@ -114,6 +115,7 @@ final class TeleprompterViewModel: ObservableObject {
 
     var currentTokenIndex: Int? { alignmentState.estimatedTokenIndex }
     var committedTokenIndex: Int? { alignmentState.committedTokenIndex }
+    var partialMatchedRange: ClosedRange<Int>? { isCurrentMatchPartial ? matchedRange : nil }
     var confidence: Double { alignmentState.confidence }
     var trackingState: AlignmentTrackingState { alignmentState.trackingState }
     var microphoneLevelQuality: MicrophoneLevelQuality { .init(level: audioLevel, quietThreshold: quietThreshold) }
@@ -307,6 +309,7 @@ final class TeleprompterViewModel: ObservableObject {
             hypotheses: [AlignmentHypothesis(tokenIndex: tokenIndex, score: 1)]
         )
         matchedRange = tokenIndex...tokenIndex
+        isCurrentMatchPartial = false
         searchMode = .local
         candidateScore = 1
         recognisedText = ""
@@ -411,6 +414,7 @@ final class TeleprompterViewModel: ObservableObject {
         )
         alignmentState = result.state
         matchedRange = result.matchedRange
+        isCurrentMatchPartial = !update.isFinal && result.matchedRange != nil
         searchMode = result.searchMode
         candidateScore = result.candidateScore
         if microphoneCheckPhase == .reading, result.matchedRange != nil {

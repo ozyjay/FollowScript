@@ -33,6 +33,27 @@ final class MockSpeechRecognitionServiceTests: XCTestCase {
         model.stop()
     }
 
+    func testPartialMatchRangeIsExposedOnlyWhileRecognitionIsPartial() async throws {
+        let service = MockSpeechRecognitionService()
+        let model = TeleprompterViewModel(
+            scriptText: "Welcome to the presentation. Today we share the final result.",
+            service: service
+        )
+
+        model.start()
+        try await Task.sleep(for: .milliseconds(50))
+        service.send("today we share", isFinal: false)
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(model.partialMatchedRange, 4...6)
+
+        service.send("today we share the final result", isFinal: true)
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertNil(model.partialMatchedRange)
+        model.stop()
+    }
+
     func testRapidPauseResumeWaitsForPreviousSessionCleanup() async throws {
         let service = SlowStoppingSpeechRecognitionService()
         let model = TeleprompterViewModel(
