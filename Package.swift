@@ -26,6 +26,7 @@ let package = Package(
                 "AlignmentFixtures.swift",
                 "ScriptAlignmentEngineTests.swift",
                 "ScriptTokenizerTests.swift",
+                "SpeechRecognitionSegmentAssemblerTests.swift",
                 "StreamingASRAlignmentTests.swift"
             ]
         )
