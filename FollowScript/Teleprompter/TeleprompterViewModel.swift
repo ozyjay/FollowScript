@@ -15,6 +15,12 @@ enum MicrophoneLevelQuality: String, Equatable {
 
 @MainActor
 final class TeleprompterViewModel: ObservableObject {
+    private enum ScrollConfiguration {
+        static let minimumTokenAdvance = 2
+        static let maximumAnimatedAdvance = 8
+        static let catchUpInterval = Duration.milliseconds(220)
+    }
+
     let script: ScriptDocument
     @Published private(set) var alignmentState = AlignmentState.initial
     @Published private(set) var recognisedText = ""
@@ -36,6 +42,8 @@ final class TeleprompterViewModel: ObservableObject {
     private var restartTask: Task<Void, Never>?
     private var followResumeTask: Task<Void, Never>?
     private var audioLevelTask: Task<Void, Never>?
+    private var scrollCatchUpTask: Task<Void, Never>?
+    private var pendingScrollDestination: Int?
     private var lastScrollTarget: Int?
     private var wantsRecognition = false
 
@@ -100,6 +108,8 @@ final class TeleprompterViewModel: ObservableObject {
         restartTask?.cancel()
         restartTask = nil
         followResumeTask?.cancel()
+        scrollCatchUpTask?.cancel()
+        scrollCatchUpTask = nil
         audioLevelTask?.cancel()
         audioLevelTask = nil
     }
@@ -126,6 +136,9 @@ final class TeleprompterViewModel: ObservableObject {
 
     func userDidScroll() {
         automaticFollowingSuspended = true
+        scrollCatchUpTask?.cancel()
+        scrollCatchUpTask = nil
+        pendingScrollDestination = nil
         followResumeTask?.cancel()
         followResumeTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(6))
@@ -136,6 +149,9 @@ final class TeleprompterViewModel: ObservableObject {
 
     func returnToCurrentPosition() {
         followResumeTask?.cancel()
+        scrollCatchUpTask?.cancel()
+        scrollCatchUpTask = nil
+        pendingScrollDestination = nil
         automaticFollowingSuspended = false
         if let currentTokenIndex {
             scrollTarget = currentTokenIndex
@@ -157,6 +173,9 @@ final class TeleprompterViewModel: ObservableObject {
         candidateScore = 1
         recognisedText = ""
         followResumeTask?.cancel()
+        scrollCatchUpTask?.cancel()
+        scrollCatchUpTask = nil
+        pendingScrollDestination = nil
         automaticFollowingSuspended = false
         scrollTarget = tokenIndex
         lastScrollTarget = tokenIndex
@@ -240,10 +259,36 @@ final class TeleprompterViewModel: ObservableObject {
         candidateScore = result.candidateScore
 
         guard let tokenIndex = result.tokenIndex, !automaticFollowingSuspended else { return }
-        let progressed = lastScrollTarget.map { tokenIndex - $0 >= 6 } ?? true
-        if progressed {
+        requestScroll(towards: tokenIndex)
+    }
+
+    private func requestScroll(towards tokenIndex: Int) {
+        guard let lastScrollTarget else {
             scrollTarget = tokenIndex
-            lastScrollTarget = tokenIndex
+            self.lastScrollTarget = tokenIndex
+            return
+        }
+        guard tokenIndex - lastScrollTarget >= ScrollConfiguration.minimumTokenAdvance else { return }
+
+        pendingScrollDestination = max(pendingScrollDestination ?? tokenIndex, tokenIndex)
+        guard scrollCatchUpTask == nil else { return }
+        scrollCatchUpTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled,
+                  !self.automaticFollowingSuspended,
+                  let destination = self.pendingScrollDestination,
+                  let current = self.lastScrollTarget,
+                  destination - current >= ScrollConfiguration.minimumTokenAdvance {
+                let next = min(destination, current + ScrollConfiguration.maximumAnimatedAdvance)
+                self.scrollTarget = next
+                self.lastScrollTarget = next
+                if next >= destination {
+                    self.pendingScrollDestination = nil
+                    break
+                }
+                try? await Task.sleep(for: ScrollConfiguration.catchUpInterval)
+            }
+            self.scrollCatchUpTask = nil
         }
     }
 }

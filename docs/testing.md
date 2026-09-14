@@ -49,6 +49,7 @@ Recorded observation: on 13 September 2026, the user confirmed that physical-iPh
 - [ ] Horizontal, vertical and combined prompt-flip readability through the teleprompter glass in portrait and landscape
 - [ ] Omissions, repeated passages, an intentional paragraph skip and speech from behind the current position
 - [ ] Manual scrolling, delayed follow return and explicit return control
+- [ ] Normal reading keeps the active portrait row near one-third screen height and large catch-ups move in bounded steps
 - [ ] Tap an earlier and later row, cancel and confirm repositioning, and verify recognition continues from the selected passage
 - [ ] Portrait/landscape rotation during recognition
 - [ ] Phone call/audio-session interruption and app background/foreground

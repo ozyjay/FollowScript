@@ -111,6 +111,31 @@ final class MockSpeechRecognitionServiceTests: XCTestCase {
         XCTAssertFalse(model.automaticFollowingSuspended)
         model.stop()
     }
+
+    func testDistantReacquisitionUsesBoundedScrollStep() async throws {
+        let service = MockSpeechRecognitionService()
+        let script = (0..<150).map { "word\($0)" }.joined(separator: " ")
+        let model = TeleprompterViewModel(scriptText: script, service: service)
+
+        model.start()
+        try await Task.sleep(for: .milliseconds(30))
+        service.send("word10 word11 word12 word13 word14", isFinal: true)
+        try await Task.sleep(for: .milliseconds(30))
+        let initialScrollTarget = try XCTUnwrap(model.scrollTarget)
+
+        service.send("unrelated noisy material", isFinal: true)
+        service.send("still unrelated noise", isFinal: true)
+        service.send("word120 word121 word122 word123 word124", isFinal: true)
+        try await Task.sleep(for: .milliseconds(30))
+
+        XCTAssertEqual(model.currentTokenIndex, 124)
+        XCTAssertLessThanOrEqual(
+            try XCTUnwrap(model.scrollTarget),
+            initialScrollTarget + 8
+        )
+        XCTAssertLessThan(try XCTUnwrap(model.scrollTarget), model.currentTokenIndex ?? 0)
+        model.stop()
+    }
 }
 
 @MainActor

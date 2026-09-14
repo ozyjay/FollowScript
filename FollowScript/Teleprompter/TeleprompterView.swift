@@ -24,9 +24,10 @@ struct TeleprompterView: View {
             GeometryReader { geometry in
                 ScrollViewReader { proxy in
                     ScrollView {
+                        let tokensPerRow = promptTokensPerRow(for: geometry.size)
                         LazyVStack(alignment: swiftUIAlignment, spacing: settings.lineSpacing) {
-                            Color.clear.frame(height: geometry.size.height * 0.34)
-                            ForEach(rows) { row in
+                            Color.clear.frame(height: geometry.size.height * 0.28)
+                            ForEach(rows(tokensPerRow: tokensPerRow)) { row in
                                 Text(rowText(row))
                                     .font(.system(size: settings.fontSize, weight: .regular, design: .rounded))
                                     .foregroundStyle(.white)
@@ -49,8 +50,12 @@ struct TeleprompterView: View {
                     )
                     .onChange(of: model.scrollTarget) { _, target in
                         guard let target, !model.automaticFollowingSuspended else { return }
-                        withAnimation(.easeInOut(duration: 0.45)) {
-                            proxy.scrollTo(rowID(containing: target), anchor: UnitPoint(x: 0.5, y: 0.40))
+                        let tokensPerRow = promptTokensPerRow(for: geometry.size)
+                        withAnimation(.easeInOut(duration: 0.20)) {
+                            proxy.scrollTo(
+                                rowID(containing: target, tokensPerRow: tokensPerRow),
+                                anchor: UnitPoint(x: 0.5, y: 0.33)
+                            )
                         }
                     }
                     .scaleEffect(x: 1, y: settings.flipsPromptVertically ? -1 : 1, anchor: .center)
@@ -197,9 +202,9 @@ struct TeleprompterView: View {
         .background(.black.opacity(0.82))
     }
 
-    private var rows: [PromptRow] {
-        stride(from: 0, to: model.script.tokens.count, by: 8).map { start in
-            let end = min(start + 7, model.script.tokens.count - 1)
+    private func rows(tokensPerRow: Int) -> [PromptRow] {
+        stride(from: 0, to: model.script.tokens.count, by: tokensPerRow).map { start in
+            let end = min(start + tokensPerRow - 1, model.script.tokens.count - 1)
             return PromptRow(id: start, tokens: Array(model.script.tokens[start...end]))
         }
     }
@@ -219,7 +224,13 @@ struct TeleprompterView: View {
         return result
     }
 
-    private func rowID(containing token: Int) -> Int { (token / 8) * 8 }
+    private func promptTokensPerRow(for size: CGSize) -> Int {
+        size.height > size.width ? 4 : 6
+    }
+
+    private func rowID(containing token: Int, tokensPerRow: Int) -> Int {
+        (token / tokensPerRow) * tokensPerRow
+    }
     private var swiftUIAlignment: HorizontalAlignment { settings.textAlignment == .centre ? .center : .leading }
     private var frameAlignment: Alignment { settings.textAlignment == .centre ? .center : .leading }
     private var textAlignment: TextAlignment { settings.textAlignment == .centre ? .center : .leading }
