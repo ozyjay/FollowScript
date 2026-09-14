@@ -51,10 +51,16 @@ final class TeleprompterViewModel: ObservableObject {
 
     init(
         scriptText: String,
+        ignoresSquareBracketedText: Bool = true,
         service: (any SpeechRecognitionService)? = nil,
         engine: ScriptAlignmentEngine = ScriptAlignmentEngine()
     ) {
-        script = ScriptDocument(text: scriptText)
+        script = ScriptDocument(
+            text: ScriptTextProcessor.prepare(
+                scriptText,
+                ignoringSquareBracketedText: ignoresSquareBracketedText
+            )
+        )
         self.service = service ?? SpeechServiceFactory.live()
         self.engine = engine
     }

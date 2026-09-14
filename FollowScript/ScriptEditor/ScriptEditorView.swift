@@ -51,6 +51,7 @@ struct ScriptEditorView: View {
             .fullScreenCover(isPresented: $model.presentsTeleprompter) {
                 TeleprompterView(
                     scriptText: model.scriptText,
+                    ignoresSquareBracketedText: model.settings.ignoresSquareBracketedText,
                     settings: $model.settings,
                     onExit: { model.presentsTeleprompter = false }
                 )

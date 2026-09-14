@@ -5,7 +5,7 @@ FollowScript requests microphone access and Apple speech-recognition authorisati
 ## Stored locally
 
 - The current script is stored in app `UserDefaults`.
-- Font size, line spacing, alignment, highlighting, highlighted-text centring, prompt-flip and display-awake preferences are stored in `UserDefaults`.
+- Font size, line spacing, alignment, highlighting, highlighted-text centring, prompt-flip, display-awake and bracketed-placeholder preferences are stored in `UserDefaults`.
 - Audio is stored in the app's Documents/Recordings folder only when the user explicitly starts recording. Finished recordings remain local unless the user exports them through the system share sheet.
 
 ## Not stored or added

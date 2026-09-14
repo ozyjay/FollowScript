@@ -33,4 +33,33 @@ final class ScriptTokenizerTests: XCTestCase {
         XCTAssertTrue(tokenizer.tokenise(" \n ").isEmpty)
         XCTAssertEqual(tokenizer.tokenise("Go!").first?.displayText, "Go!")
     }
+
+    func testSquareBracketedPlaceholdersCanBeRemovedBeforeTokenisation() {
+        let source = "Start [camera direction [wide shot]\ncontinues] speaking now."
+        let prepared = ScriptTextProcessor.prepare(source, ignoringSquareBracketedText: true)
+
+        XCTAssertEqual(tokenizer.tokenise(prepared).map(\.normalised), ["start", "speaking", "now"])
+        XCTAssertFalse(prepared.contains("camera direction"))
+        XCTAssertTrue(prepared.contains("\n"))
+    }
+
+    func testSquareBracketedTextCanRemainPartOfScript() {
+        let source = "Start [placeholder words] speaking."
+        let prepared = ScriptTextProcessor.prepare(source, ignoringSquareBracketedText: false)
+
+        XCTAssertEqual(prepared, source)
+        XCTAssertEqual(
+            tokenizer.tokenise(prepared).map(\.normalised),
+            ["start", "placeholder", "words", "speaking"]
+        )
+    }
+
+    func testUnmatchedOpeningBracketDoesNotHideRemainder() {
+        let source = "Keep [this unfinished instruction"
+
+        XCTAssertEqual(
+            ScriptTextProcessor.prepare(source, ignoringSquareBracketedText: true),
+            source
+        )
+    }
 }

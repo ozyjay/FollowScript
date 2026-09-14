@@ -12,8 +12,18 @@ struct TeleprompterView: View {
     @Binding var settings: FollowScriptSettings
     let onExit: () -> Void
 
-    init(scriptText: String, settings: Binding<FollowScriptSettings>, onExit: @escaping () -> Void) {
-        _model = StateObject(wrappedValue: TeleprompterViewModel(scriptText: scriptText))
+    init(
+        scriptText: String,
+        ignoresSquareBracketedText: Bool,
+        settings: Binding<FollowScriptSettings>,
+        onExit: @escaping () -> Void
+    ) {
+        _model = StateObject(
+            wrappedValue: TeleprompterViewModel(
+                scriptText: scriptText,
+                ignoresSquareBracketedText: ignoresSquareBracketedText
+            )
+        )
         _settings = settings
         self.onExit = onExit
     }

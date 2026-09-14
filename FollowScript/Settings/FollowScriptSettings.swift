@@ -17,6 +17,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
     var mirrorsPrompt = false
     var flipsPromptVertically = false
     var keepsDisplayAwake = false
+    var ignoresSquareBracketedText = true
 
     private enum CodingKeys: String, CodingKey {
         case fontSize
@@ -27,6 +28,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         case mirrorsPrompt
         case flipsPromptVertically
         case keepsDisplayAwake
+        case ignoresSquareBracketedText
     }
 
     init() {}
@@ -41,5 +43,9 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         mirrorsPrompt = try container.decodeIfPresent(Bool.self, forKey: .mirrorsPrompt) ?? false
         flipsPromptVertically = try container.decodeIfPresent(Bool.self, forKey: .flipsPromptVertically) ?? false
         keepsDisplayAwake = try container.decodeIfPresent(Bool.self, forKey: .keepsDisplayAwake) ?? false
+        ignoresSquareBracketedText = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .ignoresSquareBracketedText
+        ) ?? true
     }
 }

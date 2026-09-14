@@ -38,6 +38,14 @@ struct SettingsView: View {
                     Toggle("Keep display awake", isOn: $model.settings.keepsDisplayAwake)
                         .accessibilityHint("Prevents auto-lock while the teleprompter is open and may use more battery")
                 }
+
+                Section("Script processing") {
+                    Toggle(
+                        "Ignore text in square brackets",
+                        isOn: $model.settings.ignoresSquareBracketedText
+                    )
+                    .accessibilityHint("Omits bracketed placeholders from the prompt and speech matching")
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

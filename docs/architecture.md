@@ -14,7 +14,7 @@ flowchart TD
     F --> G[SwiftUI TeleprompterView]
 ```
 
-`ScriptTokenizer` retains each visible token, its normalised form, UTF-16 source range and paragraph index. `ScriptAlignmentEngine` accepts these values and plain recognition text; it imports no Speech or SwiftUI types.
+`ScriptTextProcessor` optionally removes complete square-bracketed placeholder sections before prompting while preserving line breaks and leaving the editor's stored source untouched. `ScriptTokenizer` retains each remaining visible token, its normalised form, UTF-16 source range and paragraph index. `ScriptAlignmentEngine` accepts these values and plain recognition text; it imports no Speech or SwiftUI types.
 
 `SpeechRecognitionService` is a main-actor protocol returning an `AsyncThrowingStream`, a lightweight audio-input event stream and explicit recording controls. Input events carry levels, the current system-selected route and recording failures. `SpeechServiceFactory` selects the iOS 26 analyser backend or the iOS 18–25 legacy backend. `MockSpeechRecognitionService` is the test/development seam. `MicrophoneCaptureMonitor` performs thread-safe metering, route publication and optional local file writes from the existing audio tap.
 
