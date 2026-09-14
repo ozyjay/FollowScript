@@ -303,7 +303,8 @@ final class TeleprompterViewModel: ObservableObject {
             tokenIndex: tokenIndex,
             confidence: 1,
             trackingState: .tracking,
-            lowConfidenceUpdates: 0
+            lowConfidenceUpdates: 0,
+            hypotheses: [AlignmentHypothesis(tokenIndex: tokenIndex, score: 1)]
         )
         matchedRange = tokenIndex...tokenIndex
         searchMode = .local

@@ -193,9 +193,18 @@ final class MockSpeechRecognitionServiceTests: XCTestCase {
 
         XCTAssertGreaterThan(laterPosition, 0)
         XCTAssertEqual(model.currentTokenIndex, 0)
+        XCTAssertEqual(model.committedTokenIndex, 0)
+        XCTAssertEqual(model.alignmentState.hypotheses, [AlignmentHypothesis(tokenIndex: 0, score: 1)])
         XCTAssertEqual(model.scrollTarget, 0)
         XCTAssertEqual(model.recognisedText, "")
         XCTAssertFalse(model.automaticFollowingSuspended)
+
+        try await Task.sleep(for: .milliseconds(50))
+        service.send("first passage has several words", isFinal: true)
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(model.currentTokenIndex, 4)
+        XCTAssertEqual(model.committedTokenIndex, 4)
         model.stop()
     }
 
