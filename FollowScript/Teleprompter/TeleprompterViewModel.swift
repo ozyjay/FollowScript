@@ -65,7 +65,8 @@ final class TeleprompterViewModel: ObservableObject {
         self.engine = engine
     }
 
-    var currentTokenIndex: Int? { alignmentState.tokenIndex }
+    var currentTokenIndex: Int? { alignmentState.estimatedTokenIndex }
+    var committedTokenIndex: Int? { alignmentState.committedTokenIndex }
     var confidence: Double { alignmentState.confidence }
     var trackingState: AlignmentTrackingState { alignmentState.trackingState }
     var microphoneLevelQuality: MicrophoneLevelQuality { .init(level: audioLevel) }
@@ -161,9 +162,9 @@ final class TeleprompterViewModel: ObservableObject {
         scrollCatchUpTask = nil
         pendingScrollDestination = nil
         automaticFollowingSuspended = false
-        if let currentTokenIndex {
-            scrollTarget = currentTokenIndex
-            lastScrollTarget = currentTokenIndex
+        if let committedTokenIndex {
+            scrollTarget = committedTokenIndex
+            lastScrollTarget = committedTokenIndex
         }
     }
 
@@ -262,18 +263,21 @@ final class TeleprompterViewModel: ObservableObject {
 
     private func consume(_ update: SpeechRecognitionUpdate) {
         recognisedText = update.text
+        let observations = [AlignmentObservation(text: update.text, confidence: update.confidence)]
+            + update.alternatives.map { AlignmentObservation(text: $0) }
         let result = engine.align(
             script: script,
-            recognisedText: update.text,
+            observations: observations,
             previous: alignmentState,
-            isFinal: update.isFinal
+            isFinal: update.isFinal,
+            observationTime: update.audioTimeRange?.upperBound ?? update.timestamp.timeIntervalSinceReferenceDate
         )
         alignmentState = result.state
         matchedRange = result.matchedRange
         searchMode = result.searchMode
         candidateScore = result.candidateScore
 
-        guard let tokenIndex = result.tokenIndex, !automaticFollowingSuspended else { return }
+        guard let tokenIndex = result.committedTokenIndex, !automaticFollowingSuspended else { return }
         requestScroll(towards: tokenIndex)
     }
 

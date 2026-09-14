@@ -1,51 +1,38 @@
 # Alignment engine
 
-## Representation and normalisation
+## Online tracking model
 
-`ScriptTokenizer` uses Unicode letter/number word boundaries and retains original token text, display text through the next token, a UTF-16 `NSRange`, index and paragraph number. The original `ScriptDocument.text` is never rewritten. Matching folds case and diacritics, canonicalises curly apostrophes, removes apostrophes/punctuation and ignores the fillers `ah`, `erm`, `hmm`, `like`, `uh` and `um` in recognition input.
+`ScriptAlignmentEngine` is a deterministic, framework-neutral online sequence tracker. Each recognition update scores candidate script ranges, keeps the best candidate for each endpoint, and retains a beam of up to seven endpoints in `AlignmentState`. The next update combines lexical evidence with a transition score instead of treating each transcript independently.
 
-The recogniser window is the last 16 non-filler tokens. This bounds work and weights current speech rather than stale transcript text.
+`estimatedTokenIndex` is the responsive estimate used for highlighting. `committedTokenIndex` is the stable monotonic anchor used for scrolling. An estimate requires confidence of `0.46`. A local commit requires `0.64`; global reacquisition requires `0.66`, while a distant jump requires `0.74`, at least three recognised tokens and distinctive evidence. Partial estimates retain the existing one-token lag; final results use the matched endpoint.
 
-## Matching
+## Evidence score
 
-Each possible candidate ending is evaluated across lengths within four tokens of the recognition window. Similarity is:
+The recognition window remains the last 16 non-filler tokens. Candidate lengths are within four tokens of that window. Lexical evidence combines:
 
 ```text
-0.50 × normalised edit similarity
-+ 0.30 × LCS / longer sequence
-+ 0.20 × LCS / recognised sequence
+0.38 × normalised edit similarity
++ 0.25 × LCS / longer sequence
++ 0.17 × LCS / recognised sequence
++ 0.20 × distinctiveness-weighted coverage
 ```
 
-This tolerates omitted, inserted and mistaken words while rewarding order and recognised-word coverage. Local candidates receive up to `0.10` continuity bonus, decaying with forward distance from the previous token.
+Distinctiveness uses a within-script IDF-like weight: `1 + 0.28 × log((token count + 1) / (word frequency + 1))`. Rare words therefore resolve repeated/common wording more strongly without making common words useless. When multiple ASR hypotheses are supplied, the strongest confidence-weighted lexical observation contributes. `AlignmentObservation` also reserves optional phonetic tokens for a future lightweight implementation; they are not scored yet.
 
-Confidence scales the candidate score by evidence: `score × (0.62 + 0.38 × min(unique recognised tokens / 5, 1))`. Final results add `0.03`. Short fragments can therefore track, but provide less authority than a distinctive phrase.
+## Transitions and timing
 
-Initial acquisition requires at least two tokens from a partial recognition update. A final result may still acquire from one token, and one-token partials may continue an established position. This prevents a common interim word such as “and” from prematurely anchoring the prompt while the recogniser is still forming a longer phrase.
+Candidate evidence contributes 84% and the transition model 16% when an anchor exists. Staying is cheap, small forward moves are preferred, and progressively larger omissions/skips incur `0.012` per token. Distant global jumps add `0.12`. When audio time is available, movement beyond the estimated speaking distance plus four tokens receives an additional penalty. The engine starts at 2.6 tokens/second and smooths observed committed progress, clamped to 1–5.5 tokens/second.
 
-Accepted partial results expose a current position one token behind the matched endpoint. The following recognised word therefore confirms that the speaker has passed the highlighted word; a lone new partial token cannot pull an established position forward. Final results expose the matched endpoint without this lag. This makes prompting reactive to demonstrated progress rather than pre-emptive from the latest recognition hypothesis.
+Repetition is represented by keeping the current/nearby beam hypotheses and a low cost for staying. Automatic candidate ranges remain forward-only from the committed anchor, preserving the safety rule that stale recognition cannot pull the prompt backwards. A user-selected anchor remains the explicit way to move backwards.
 
-## Tracking, uncertainty and reacquisition
+## Reacquisition and safety
 
-Once a current token exists, candidate ranges must begin at that token or later. Tracked updates search from the current token through 80 tokens ahead, so alignment is monotonic and recognised wording from an earlier passage cannot move the prompt backwards. A local result below `0.48` is rejected. Confidence at or above `0.62` reports `tracking`; weaker accepted evidence reports `uncertain`.
+Tracking searches only the next 80 tokens. Two poor updates enter reacquisition and expand the search from the committed position to the end of the script. Tentative and committed distant movement share the distinctive-evidence guard, so a weak repeated phrase cannot flash the highlight elsewhere or move the viewport. A local update cannot advance beyond its recognised-token count plus four tokens; a genuine larger omission must first trigger reacquisition.
 
-A local update may advance by at most the recognised token count plus four tokens of slack. A short utterance therefore cannot jump across a sentence merely because a later candidate scores well. Longer skips must first produce sustained poor local evidence and then pass the stronger global reacquisition rules.
+## Replay evaluation
 
-The user can explicitly replace that anchor by tapping a prompt row and confirming Continue from here. The view model resets the alignment state to the first token in the selected row and restarts recognition to clear its cumulative transcript. Automatic matching is then monotonic from the new anchor; this is the only supported backward transition.
-
-Two consecutive rejected updates move state to `reacquiring`. The following update searches from the current token to the end of the script; only initial acquisition searches the whole script. Global evidence must reach `0.66`; a distant jump also requires at least three recognised tokens. This prevents a single dubious update moving to another repeated phrase. Global candidates beyond the local look-ahead receive a small `0.03` penalty where a previous position exists.
-
-If evidence is insufficient, position remains unchanged and the low-confidence counter advances. Empty input never moves position.
-
-## Worked examples
-
-For “The research demonstrates that cybersickness remains a significant challenge …” and “research demonstrates cybersickness remains a significant challenge”, edit/LCS agreement remains high despite omitted “the” and “that”, placing the endpoint at “challenge”.
-
-If the script reads “We first examined attention. We then examined participant comfort. Finally, we considered confidence” and speech jumps to “finally we considered confidence”, two unrelated/weak updates first enter reacquisition. The distinctive four-token phrase can then pass the global threshold and move to the final sentence.
-
-When “we begin together” occurs twice and the first occurrence is already behind the current token, only the later occurrence is eligible. A distant forward occurrence may require tracking loss and stronger global evidence.
+`AlignmentReplayMetrics` summarises labelled sequences with mean/max absolute estimated-position error, false jumps and updates spent reacquiring. Deterministic fixtures cover normal progress, omissions, recognition errors, repetition, repeated phrases, false jumps, forward reacquisition, alternate hypotheses and timing-constrained movement. Recorded device transcripts can use the same frame sequence without importing Speech types.
 
 ## Complexity and limitations
 
-With recognition window `W ≤ 16`, candidate length tolerance `T = 4`, local search span `B ≤ 81`, and remaining script length `N`, dynamic-programming comparison is approximately `O(B × T × W²)` while tracking and `O(N × T × W²)` during reacquisition. Storage per comparison is `O(W)`.
-
-The current engine is lexical: homophones, heavy paraphrase and languages requiring specialised word segmentation are weak cases. Confidence is algorithmic, not a calibrated probability. Tuning changes must follow `.skills/alignment-engine/SKILL.md`, update this document and pass deterministic fixtures.
+With recognition window `W ≤ 16`, length tolerance `T = 4`, beam width `K = 7`, local span `B ≤ 81` and remaining tokens `N`, work is approximately `O(B × T × W²)` locally and `O(N × T × W²)` during reacquisition. The score is lexical and heuristic rather than a calibrated probability. Phonetic matching is an interface seam only. Tuning changes must update deterministic fixtures and this document.

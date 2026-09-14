@@ -22,7 +22,7 @@ Run the full target on an installed simulator/device, substituting an available 
 xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -destination 'platform=iOS Simulator,name=iPhone 17' test
 ```
 
-`AlignmentFixtures.presentation` is a multi-paragraph presentation. Sequential recognition fragments verify stable forward progression across omissions, punctuation changes and paragraph boundaries. Smaller cases cover each edge condition precisely.
+`AlignmentFixtures.presentation` is a multi-paragraph presentation. Sequential recognition fragments verify stable forward progression across omissions, punctuation changes and paragraph boundaries. Smaller cases cover each edge condition precisely. Labelled replay sequences use `AlignmentReplayMetrics` to report mean/max estimated-position error, false jumps and reacquisition update count.
 
 ## What each environment proves
 
@@ -44,6 +44,9 @@ Recorded observation: on 13 September 2026, the user confirmed that physical-iPh
 - [ ] Pause/resume and repeated recognition restart (retest the duplicate-tap crash fix)
 - [ ] Ten-minute continuous speech and long pauses
 - [ ] Partial-result latency and alignment responsiveness
+- [ ] Tentative highlighting reacts before committed scrolling without visible false flashes
+- [ ] Distant reacquisition requires a distinctive phrase and ignores repeated/common wording
+- [ ] iOS 26 time-indexed ranges and alternatives are populated for the selected locale
 - [ ] Microphone meter responds to silence, normal speech and clipping without distracting flicker
 - [ ] Connect a USB-C wireless-microphone receiver before launch; confirm its system name appears and drives recognition, metering and the saved recording
 - [ ] Disconnect and reconnect the external receiver while prompting; confirm the route display updates and the fallback warning is visible

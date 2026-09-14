@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreMedia
 import Speech
 
 @MainActor
@@ -112,6 +113,9 @@ private final class LegacySpeechRecognitionService: SpeechRecognitionService {
                                 text: result.bestTranscription.formattedString,
                                 isFinal: result.isFinal,
                                 timestamp: Date(),
+                                audioTimeRange: result.bestTranscription.segments.last.map {
+                                    $0.timestamp..<($0.timestamp + $0.duration)
+                                },
                                 confidence: confidence
                             )
                         )
@@ -233,7 +237,9 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
             }
             try ensureCurrent(generation)
 
-            let transcriber = SpeechTranscriber(locale: supportedLocale, preset: .progressiveTranscription)
+            var preset = SpeechTranscriber.Preset.timeIndexedProgressiveTranscription
+            preset.reportingOptions.insert(.alternativeTranscriptions)
+            let transcriber = SpeechTranscriber(locale: supportedLocale, preset: preset)
             if let installation = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
                 try ensureCurrent(generation)
                 try await installation.downloadAndInstall()
@@ -306,8 +312,10 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
                         outputContinuation.yield(
                             SpeechRecognitionUpdate(
                                 text: String(result.text.characters),
+                                alternatives: result.alternatives.map { String($0.characters) },
                                 isFinal: result.isFinal,
                                 timestamp: Date(),
+                                audioTimeRange: result.range.secondsRange,
                                 confidence: nil
                             )
                         )
@@ -392,5 +400,15 @@ private final class SpeechAnalyzerRecognitionService: SpeechRecognitionService {
         if let localeToRelease {
             _ = await AssetInventory.release(reservedLocale: localeToRelease)
         }
+    }
+}
+
+@available(iOS 26.0, *)
+private extension CMTimeRange {
+    var secondsRange: Range<TimeInterval>? {
+        let start = CMTimeGetSeconds(self.start)
+        let duration = CMTimeGetSeconds(self.duration)
+        guard start.isFinite, duration.isFinite, duration >= 0 else { return nil }
+        return start..<(start + duration)
     }
 }

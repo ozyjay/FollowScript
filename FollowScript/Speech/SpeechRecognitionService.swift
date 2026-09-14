@@ -9,9 +9,22 @@ enum SpeechAuthorisationStatus: Equatable, Sendable {
 
 struct SpeechRecognitionUpdate: Equatable, Sendable {
     let text: String
+    let alternatives: [String]
     let isFinal: Bool
     let timestamp: Date
+    /// Seconds from the beginning of the recogniser's current audio stream.
+    let audioTimeRange: Range<TimeInterval>?
     let confidence: Double?
+
+    init(text: String, alternatives: [String] = [], isFinal: Bool, timestamp: Date,
+         audioTimeRange: Range<TimeInterval>? = nil, confidence: Double?) {
+        self.text = text
+        self.alternatives = alternatives
+        self.isFinal = isFinal
+        self.timestamp = timestamp
+        self.audioTimeRange = audioTimeRange
+        self.confidence = confidence
+    }
 }
 
 struct AudioInputDescriptor: Equatable, Sendable {
