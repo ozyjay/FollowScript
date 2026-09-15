@@ -27,3 +27,7 @@ The native launch screen immediately presents the same dark foundation as the in
 Audio callbacks feed framework-owned requests or streams; session results return to main-actor state before UI mutation. Cancelling or backgrounding ends audio input, recognition tasks and streams. Dependencies point from presentation to abstractions/domain types, never from the alignment engine to UI or Apple Speech.
 
 Portable alignment tests run through `Package.swift`; Xcode owns the app and full XCTest target. Local workflow boundaries are documented in `.skills/`: alignment, SwiftUI, speech, testing and documentation.
+
+## Presentation modes and takes
+
+Presentation mode is chosen each time the script is presented and remembered in settings. Teleprompter mode keeps recognition in memory and creates no project or take. Audio and video modes create a project lazily when the user starts recording, then save each completed take as a media file with JSON metadata under Documents/Projects. The existing recognition service owns the only microphone tap; audio recording branches from that tap. VideoCaptureCoordinator captures front-camera video without a microphone input, while VideoTakeMuxer joins that movie with the tap-recorded audio after stopping. CameraPreview sits behind the SwiftUI prompt, so prompt text is not recorded. This post-recording join needs physical-device validation for audio/video sync and interruptions.

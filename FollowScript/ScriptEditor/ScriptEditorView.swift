@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ScriptEditorView: View {
     @ObservedObject var model: AppModel
+    @State private var presentsModePicker = false
+    @State private var selectedMode: PresentationMode = .teleprompter
     @State private var presentsFileImporter = false
     @State private var isImporting = false
     @State private var importNotice: ImportNotice?
@@ -16,7 +18,8 @@ struct ScriptEditorView: View {
                     .accessibilityLabel("Script")
 
                 Button {
-                    model.presentsTeleprompter = true
+                    selectedMode = model.settings.lastPresentationMode
+                    presentsModePicker = true
                 } label: {
                     Label("Start Teleprompter", systemImage: "play.fill")
                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -24,7 +27,7 @@ struct ScriptEditorView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .disabled(!model.canStart)
-                .accessibilityHint("Starts listening and follows your place in the prepared script")
+                .accessibilityHint("Choose teleprompter, audio or video presentation")
             }
             .padding()
             .navigationTitle("FollowScript")
@@ -48,9 +51,21 @@ struct ScriptEditorView: View {
             .sheet(isPresented: $model.presentsSettings) {
                 SettingsView(model: model)
             }
+            .confirmationDialog("Presentation mode", isPresented: $presentsModePicker, titleVisibility: .visible) {
+                ForEach(PresentationMode.allCases) { mode in
+                    Button(mode.title) {
+                        selectedMode = mode
+                        model.settings.lastPresentationMode = mode
+                        model.presentsTeleprompter = true
+                    }
+                }
+            } message: {
+                Text("Choose how to present this script. Recording modes save a take when you record.")
+            }
             .fullScreenCover(isPresented: $model.presentsTeleprompter) {
                 TeleprompterView(
                     scriptText: model.scriptText,
+                    mode: selectedMode,
                     ignoresSquareBracketedText: model.settings.ignoresSquareBracketedText,
                     removesExtraWhitespace: model.settings.removesExtraWhitespace,
                     logsTimestampedTrackingInformation: model.settings.logsTimestampedTrackingInformation,

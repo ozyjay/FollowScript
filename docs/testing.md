@@ -83,3 +83,7 @@ Recorded observation: on 13 September 2026, the user confirmed that physical-iPh
 - [ ] Battery and thermal behaviour for a realistic presentation
 
 A device run exposed the former duplicate-tap crash, but the corrected lifecycle implementation has not yet been rerun on that device. Treat every unchecked item as unverified. Follow `.skills/testing/SKILL.md`; report exact commands and do not turn a build-only result into a test claim.
+
+### Presentation modes on a physical iPhone
+
+Check all three modes, microphone recognition latency during recording, front-camera preview, prompt exclusion from exported video, audio/video sync, repeated takes, low storage, camera denial, background interruption and external microphone route changes. Simulator builds do not establish camera or microphone behaviour.

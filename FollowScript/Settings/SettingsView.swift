@@ -90,7 +90,7 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .onAppear { recordings = LocalRecordingStore.recordings() }
+            .onAppear { recordings = PresentationProjectStore.mediaFiles() + LocalRecordingStore.recordings() }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

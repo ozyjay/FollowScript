@@ -24,3 +24,5 @@ The system Files picker can provide a user-selected document from On My iPhone, 
 On iOS 18–25 the app sets `requiresOnDeviceRecognition` and refuses to start when that is unavailable. On iOS 26+, SpeechAnalyzer uses Apple-provided language assets and may download an asset on first use. Apple controls its frameworks, system permissions, model availability and OS behaviour; the project therefore does not claim a stronger guarantee for every device/language than those APIs provide.
 
 The iOS 26.5 SDK integration has been compiled, but offline and live device behaviour remain unverified until the physical-device checklist in [testing.md](testing.md) is completed.
+
+Recording is opt-in per presentation. Teleprompter-only mode retains no audio or video. Audio and audiovisual takes are local media files under Documents/Projects, with JSON metadata alongside them; transient camera and audio files are removed after a successful video join. The camera preview is visual only and the teleprompter text is not included in the saved movie.

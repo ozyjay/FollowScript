@@ -9,6 +9,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         var title: String { self == .leading ? "Left" : "Centre" }
     }
 
+    var lastPresentationMode: PresentationMode = .teleprompter
     var fontSize: Double = 42
     var lineSpacing: Double = 12
     var textAlignment: TextAlignmentOption = .leading
@@ -22,6 +23,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
     var removesExtraWhitespace = true
 
     private enum CodingKeys: String, CodingKey {
+        case lastPresentationMode
         case fontSize
         case lineSpacing
         case textAlignment
@@ -39,6 +41,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        lastPresentationMode = try container.decodeIfPresent(PresentationMode.self, forKey: .lastPresentationMode) ?? .teleprompter
         fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 42
         lineSpacing = try container.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? 12
         textAlignment = try container.decodeIfPresent(TextAlignmentOption.self, forKey: .textAlignment) ?? .leading

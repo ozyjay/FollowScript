@@ -208,6 +208,12 @@ final class TeleprompterViewModel: ObservableObject {
     )
 
     let script: ScriptDocument
+    let mode: PresentationMode
+    let videoCapture = VideoCaptureCoordinator()
+    private var project: PresentationProject?
+    private var takeID: UUID?
+    private var recordingStartedAt: Date?
+    private var isFinishingTake = false
     @Published private(set) var alignmentState = AlignmentState.initial
     @Published private(set) var recognisedText = ""
     @Published private(set) var matchedRange: ClosedRange<Int>?
@@ -256,6 +262,7 @@ final class TeleprompterViewModel: ObservableObject {
 
     init(
         scriptText: String,
+        mode: PresentationMode = .teleprompter,
         ignoresSquareBracketedText: Bool = true,
         removesExtraWhitespace: Bool = true,
         logsTimestampedTrackingInformation: Bool = false,
@@ -271,6 +278,7 @@ final class TeleprompterViewModel: ObservableObject {
                 removingExtraWhitespace: removesExtraWhitespace
             )
         )
+        self.mode = mode
         self.service = service ?? SpeechServiceFactory.live()
         self.engine = engine
         self.microphoneCheckRoomDuration = microphoneCheckRoomDuration
@@ -367,15 +375,30 @@ final class TeleprompterViewModel: ObservableObject {
         audioLevelTask = nil
         microphoneCheckTask?.cancel()
         microphoneCheckTask = nil
+        if !isRecording && !isFinishingTake { videoCapture.shutdown() }
     }
 
-    func toggleRecording() {
+    func prepareVideo() async {
+        do { try await videoCapture.prepare() }
+        catch { recordingErrorMessage = error.localizedDescription }
+    }
+
+    func toggleRecording() async {
+        guard mode != .teleprompter else { return }
         if isRecording {
-            finishRecording()
+            await finishTake()
             return
         }
         do {
+            if mode == .audiovisual && !videoCapture.isReady { try await videoCapture.prepare() }
+            if project == nil { project = try PresentationProjectStore.createProject(script: script.text) }
             try service.startRecording()
+            if mode == .audiovisual {
+                do { try videoCapture.start() }
+                catch { _ = try? service.stopRecording(); throw error }
+            }
+            takeID = UUID()
+            recordingStartedAt = Date()
             latestRecordingURL = nil
             recordingErrorMessage = nil
             isRecording = true
@@ -569,13 +592,40 @@ final class TeleprompterViewModel: ObservableObject {
 
     private func finishRecording() {
         guard isRecording else { return }
-        do {
-            latestRecordingURL = try service.stopRecording()
-        } catch {
-            recordingErrorMessage = (error as? LocalizedError)?.errorDescription
-                ?? "FollowScript could not finish the recording."
-        }
+        isFinishingTake = true
+        Task { await finishTake() }
+    }
+
+    private func finishTake() async {
+        guard isRecording else { return }
         isRecording = false
+        isFinishingTake = true
+        defer {
+            isFinishingTake = false
+            if !wantsRecognition { videoCapture.shutdown() }
+        }
+        let audioURL: URL?
+        do { audioURL = try service.stopRecording() }
+        catch { recordingErrorMessage = error.localizedDescription; return }
+        do {
+            let videoURL = mode == .audiovisual ? try await videoCapture.stop() : nil
+            guard let audioURL, let project,
+                  let takeID, let recordingStartedAt else { throw VideoCaptureError.unavailable }
+            let source: URL
+            if let videoURL {
+                source = try await VideoTakeMuxer.combine(video: videoURL, audio: audioURL)
+                try? FileManager.default.removeItem(at: videoURL)
+                try? FileManager.default.removeItem(at: audioURL)
+            } else { source = audioURL }
+            let endedAt = Date()
+            let take = PresentationTake(id: takeID, projectID: project.id, mode: mode,
+                                        startedAt: recordingStartedAt, endedAt: endedAt,
+                                        mediaFilename: "\(takeID).\(mode == .audio ? "caf" : "mov")",
+                                        duration: endedAt.timeIntervalSince(recordingStartedAt))
+            latestRecordingURL = try PresentationProjectStore.saveTake(take, source: source)
+        } catch { recordingErrorMessage = error.localizedDescription }
+        takeID = nil
+        recordingStartedAt = nil
     }
 
     private func consume(_ update: SpeechRecognitionUpdate) {

@@ -16,6 +16,7 @@ struct TeleprompterView: View {
 
     init(
         scriptText: String,
+        mode: PresentationMode,
         ignoresSquareBracketedText: Bool,
         removesExtraWhitespace: Bool,
         logsTimestampedTrackingInformation: Bool,
@@ -25,6 +26,7 @@ struct TeleprompterView: View {
         _model = StateObject(
             wrappedValue: TeleprompterViewModel(
                 scriptText: scriptText,
+                mode: mode,
                 ignoresSquareBracketedText: ignoresSquareBracketedText,
                 removesExtraWhitespace: removesExtraWhitespace,
                 logsTimestampedTrackingInformation: logsTimestampedTrackingInformation
@@ -37,6 +39,10 @@ struct TeleprompterView: View {
     var body: some View {
         ZStack(alignment: .top) {
             Color.black.ignoresSafeArea()
+            if model.mode == .audiovisual {
+                CameraPreview(session: model.videoCapture.session).ignoresSafeArea()
+                    .accessibilityHidden(true)
+            }
             GeometryReader { geometry in
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -115,7 +121,10 @@ struct TeleprompterView: View {
         }
         .preferredColorScheme(.dark)
         .onAppear { beginManagingDisplaySleep() }
-        .task { model.start() }
+        .task {
+            if model.mode == .audiovisual { await model.prepareVideo() }
+            model.start()
+        }
         .onDisappear {
             model.stop()
             restoreDisplaySleepSetting()
@@ -206,14 +215,16 @@ struct TeleprompterView: View {
                 .accessibilityValue(settings.flipsPromptVertically ? "On" : "Off")
                 .accessibilityHint("Turns only the scrolling script upside down")
 
+                if model.mode != .teleprompter {
                 Button(
-                    model.isRecording ? "Stop recording" : "Record audio",
+                    model.isRecording ? "Stop recording" : (model.mode == .audio ? "Record audio" : "Record video"),
                     systemImage: model.isRecording ? "stop.circle.fill" : "record.circle"
                 ) {
-                    model.toggleRecording()
+                    Task { await model.toggleRecording() }
                 }
                 .foregroundStyle(model.isRecording ? .red : .primary)
                 .disabled(!model.isListening && !model.isRecording)
+                }
 
                 Button(
                     model.isListening ? "Pause" : "Resume",
