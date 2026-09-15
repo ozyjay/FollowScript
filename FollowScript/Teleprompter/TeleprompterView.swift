@@ -5,7 +5,7 @@ struct TeleprompterView: View {
     @StateObject private var model: TeleprompterViewModel
     @State private var showsDiagnostics = false
     @State private var showsMicrophoneCheck = false
-    @State private var showsTrackingStatus = true
+    @State private var showsInterfaceChrome = true
     @State private var pausedByUser = false
     @State private var previousIdleTimerDisabled: Bool?
     @State private var requestedPromptRow: PromptRow?
@@ -51,9 +51,19 @@ struct TeleprompterView: View {
                                     .multilineTextAlignment(textAlignment(for: row))
                                     .id(row.id)
                                     .accessibilityLabel(row.plainText)
-                                    .accessibilityHint("Double-tap to move speech following to this passage")
+                                    .accessibilityHint(
+                                        showsInterfaceChrome
+                                            ? "Double-tap to move speech following to this passage"
+                                            : "Double-tap to show teleprompter controls"
+                                    )
                                     .contentShape(Rectangle())
-                                    .onTapGesture { requestedPromptRow = row }
+                                    .onTapGesture {
+                                        if showsInterfaceChrome {
+                                            requestedPromptRow = row
+                                        } else {
+                                            withAnimation { showsInterfaceChrome = true }
+                                        }
+                                    }
                             }
                             Color.clear.frame(height: geometry.size.height * 0.55)
                         }
@@ -79,7 +89,10 @@ struct TeleprompterView: View {
                 }
             }
 
-            controls
+            if showsInterfaceChrome {
+                controls
+                    .transition(.opacity)
+            }
 
             if model.automaticFollowingSuspended {
                 VStack {
@@ -163,14 +176,10 @@ struct TeleprompterView: View {
 #if DEBUG
                 Button("Diagnostics", systemImage: "ladybug") { showsDiagnostics = true }
 #endif
-                Button(
-                    showsTrackingStatus ? "Hide tracking status" : "Show tracking status",
-                    systemImage: showsTrackingStatus ? "eye.slash" : "eye"
-                ) {
-                    showsTrackingStatus.toggle()
+                Button("Hide teleprompter controls", systemImage: "eye.slash") {
+                    withAnimation { showsInterfaceChrome = false }
                 }
-                .accessibilityValue(showsTrackingStatus ? "Shown" : "Hidden")
-                .accessibilityHint("Changes only the status display; speech following continues")
+                .accessibilityHint("Tap the script to restore controls; speech following continues")
 
                 Button(
                     settings.mirrorsPrompt ? "Use normal prompt view" : "Mirror prompt",
@@ -223,12 +232,10 @@ struct TeleprompterView: View {
                 .disabled(!model.isListening)
             }
 
-            if showsTrackingStatus {
-                TrackingStatusView(
-                    recognition: model.recognitionActivity,
-                    following: model.followingPresentationState
-                )
-            }
+            TrackingStatusView(
+                recognition: model.recognitionActivity,
+                following: model.followingPresentationState
+            )
 
             MicrophoneLevelView(
                 level: model.audioLevel,
