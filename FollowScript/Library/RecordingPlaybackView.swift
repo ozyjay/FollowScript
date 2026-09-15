@@ -13,6 +13,8 @@ final class RecordingPlaybackModel: ObservableObject {
 
     let url: URL
     let isVideo: Bool
+    private let recordingID: UUID?
+    private let diagnosticsEnabled: Bool
     @Published private(set) var videoPlayer: AVPlayer?
     @Published private(set) var isPlaying = false
     @Published private(set) var currentTime: TimeInterval = 0
@@ -24,13 +26,17 @@ final class RecordingPlaybackModel: ObservableObject {
     private var statusObservation: NSKeyValueObservation?
     private var audioClockTask: Task<Void, Never>?
     private var previousAudioSession: PreviousAudioSession?
+    private var didStartPlayback = false
 
-    init(url: URL) {
+    init(url: URL, recordingID: UUID? = nil, diagnosticsEnabled: Bool = false) {
         self.url = url
+        self.recordingID = recordingID
+        self.diagnosticsEnabled = diagnosticsEnabled
         isVideo = url.pathExtension.lowercased() == "mov"
     }
 
     func prepare() async {
+        PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled, operation: "playTake", phase: "requested", identifier: recordingID)
         do {
             guard url.isFileURL, FileManager.default.fileExists(atPath: url.path) else {
                 throw RecordingPlaybackError.fileMissing
@@ -63,11 +69,17 @@ final class RecordingPlaybackModel: ObservableObject {
                 let item = AVPlayerItem(asset: asset)
                 statusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
                     let failed = item.status == .failed
+                    let failure = item.error ?? RecordingPlaybackError.unplayableVideo
                     let detail = item.error?.localizedDescription
                     Task { @MainActor [weak self] in
-                        guard failed else { return }
-                        self?.isPlaying = false
-                        self?.errorMessage = detail ?? RecordingPlaybackError.unplayableVideo.localizedDescription
+                        guard failed, let self else { return }
+                        PresentationManagementDiagnostics.event(
+                            enabled: self.diagnosticsEnabled, operation: "playTake", phase: "failed",
+                            identifier: self.recordingID,
+                            error: failure
+                        )
+                        self.isPlaying = false
+                        self.errorMessage = detail ?? RecordingPlaybackError.unplayableVideo.localizedDescription
                     }
                 }
                 let player = AVPlayer(playerItem: item)
@@ -95,10 +107,13 @@ final class RecordingPlaybackModel: ObservableObject {
                 isPlaying = true
                 startAudioClock()
             }
+            didStartPlayback = true
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled, operation: "playTake", phase: "started", identifier: recordingID)
         } catch is CancellationError {
             stop()
         } catch {
             stop()
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled, operation: "playTake", phase: "failed", identifier: recordingID, error: error)
             errorMessage = error.localizedDescription
         }
     }
@@ -131,6 +146,10 @@ final class RecordingPlaybackModel: ObservableObject {
     }
 
     func stop() {
+        if didStartPlayback {
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled, operation: "playTake", phase: "ended", identifier: recordingID)
+            didStartPlayback = false
+        }
         audioClockTask?.cancel()
         audioClockTask = nil
         if let videoPlayer, let timeObserver { videoPlayer.removeTimeObserver(timeObserver) }
@@ -182,8 +201,10 @@ struct RecordingPlaybackView: View {
     @StateObject private var model: RecordingPlaybackModel
     @Environment(\.dismiss) private var dismiss
 
-    init(url: URL) {
-        _model = StateObject(wrappedValue: RecordingPlaybackModel(url: url))
+    init(url: URL, recordingID: UUID? = nil, diagnosticsEnabled: Bool = false) {
+        _model = StateObject(wrappedValue: RecordingPlaybackModel(
+            url: url, recordingID: recordingID, diagnosticsEnabled: diagnosticsEnabled
+        ))
     }
 
     var body: some View {

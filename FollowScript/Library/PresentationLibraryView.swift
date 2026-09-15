@@ -5,38 +5,76 @@ final class PresentationLibraryModel: ObservableObject {
     @Published private(set) var projects: [PresentationProject] = []
     @Published private(set) var legacyRecordings: [URL] = []
     @Published var errorMessage: String?
+    private let diagnosticsEnabled: () -> Bool
+
+    init(diagnosticsEnabled: @escaping () -> Bool = { false }) {
+        self.diagnosticsEnabled = diagnosticsEnabled
+    }
 
     func refresh() {
-        do { projects = try PresentationProjectStore.projects() }
-        catch { errorMessage = error.localizedDescription }
+        do {
+            projects = try PresentationProjectStore.projects()
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "libraryRefresh", phase: "completed")
+        } catch {
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "libraryRefresh", phase: "failed", error: error)
+            errorMessage = error.localizedDescription
+        }
         legacyRecordings = LocalRecordingStore.recordings()
     }
 
     func rename(_ project: PresentationProject, to title: String) {
-        do { _ = try PresentationProjectStore.rename(project, to: title); refresh() }
-        catch { errorMessage = error.localizedDescription }
+        PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "renamePresentation", phase: "requested", identifier: project.id)
+        do {
+            _ = try PresentationProjectStore.rename(project, to: title)
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "renamePresentation", phase: "completed", identifier: project.id)
+            refresh()
+        } catch {
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "renamePresentation", phase: "failed", identifier: project.id, error: error)
+            errorMessage = error.localizedDescription
+        }
     }
 
     func saveScript(_ script: String) {
-        do { _ = try PresentationProjectStore.createProject(script: script); refresh() }
-        catch { errorMessage = error.localizedDescription }
+        PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "savePresentation", phase: "requested")
+        do {
+            let project = try PresentationProjectStore.createProject(script: script)
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "savePresentation", phase: "completed", identifier: project.id)
+            refresh()
+        } catch {
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "savePresentation", phase: "failed", error: error)
+            errorMessage = error.localizedDescription
+        }
     }
 
     func delete(_ project: PresentationProject) {
-        do { try PresentationProjectStore.delete(project); refresh() }
-        catch { errorMessage = error.localizedDescription }
+        PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "deletePresentation", phase: "requested", identifier: project.id)
+        do {
+            try PresentationProjectStore.delete(project)
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "deletePresentation", phase: "completed", identifier: project.id)
+            refresh()
+        } catch {
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "deletePresentation", phase: "failed", identifier: project.id, error: error)
+            errorMessage = error.localizedDescription
+        }
     }
 
     func deleteLegacyRecording(_ url: URL) {
-        do { try FileManager.default.removeItem(at: url); refresh() }
-        catch { errorMessage = error.localizedDescription }
+        PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "deleteEarlierRecording", phase: "requested")
+        do {
+            try FileManager.default.removeItem(at: url)
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "deleteEarlierRecording", phase: "completed")
+            refresh()
+        } catch {
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "deleteEarlierRecording", phase: "failed", error: error)
+            errorMessage = error.localizedDescription
+        }
     }
 }
 
 struct PresentationLibraryView: View {
     @ObservedObject var appModel: AppModel
     let onRecordProject: (PresentationProject) -> Void
-    @StateObject private var library = PresentationLibraryModel()
+    @StateObject private var library: PresentationLibraryModel
     @State private var searchText = ""
     @State private var projectToDelete: PresentationProject?
     @State private var recordingToDelete: URL?
@@ -44,6 +82,14 @@ struct PresentationLibraryView: View {
     @State private var projectToRecord: PresentationProject?
     @State private var legacyPlaybackURL: PlaybackItem?
     @Environment(\.dismiss) private var dismiss
+
+    init(appModel: AppModel, onRecordProject: @escaping (PresentationProject) -> Void) {
+        self.appModel = appModel
+        self.onRecordProject = onRecordProject
+        _library = StateObject(wrappedValue: PresentationLibraryModel(
+            diagnosticsEnabled: { appModel.settings.logsTimestampedTrackingInformation }
+        ))
+    }
 
     private var filteredProjects: [PresentationProject] {
         guard !searchText.isEmpty else { return library.projects }
@@ -72,7 +118,8 @@ struct PresentationLibraryView: View {
                                 projectToLoad = project
                             }, onRecord: {
                                 projectToRecord = project
-                            }, onChanged: library.refresh)
+                            }, onChanged: library.refresh,
+                               diagnosticsEnabled: { appModel.settings.logsTimestampedTrackingInformation })
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(project.title).font(.headline)
@@ -135,7 +182,8 @@ struct PresentationLibraryView: View {
             .onAppear(perform: library.refresh)
             .refreshable { library.refresh() }
             .sheet(item: $legacyPlaybackURL) { item in
-                RecordingPlaybackView(url: item.url)
+                RecordingPlaybackView(url: item.url,
+                                      diagnosticsEnabled: appModel.settings.logsTimestampedTrackingInformation)
             }
             .confirmationDialog("Delete presentation?", isPresented: Binding(
                 get: { projectToDelete != nil }, set: { if !$0 { projectToDelete = nil } }
@@ -189,23 +237,47 @@ final class PresentationProjectDetailModel: ObservableObject {
     @Published private(set) var project: PresentationProject
     @Published private(set) var takes: [PresentationTake] = []
     @Published var errorMessage: String?
+    private let diagnosticsEnabled: () -> Bool
 
-    init(project: PresentationProject) { self.project = project }
+    init(project: PresentationProject, diagnosticsEnabled: @escaping () -> Bool = { false }) {
+        self.project = project
+        self.diagnosticsEnabled = diagnosticsEnabled
+    }
 
     func refresh() {
-        do { takes = try PresentationProjectStore.takes(for: project.id) }
-        catch { errorMessage = error.localizedDescription }
+        do {
+            takes = try PresentationProjectStore.takes(for: project.id)
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "takesRefresh", phase: "completed", identifier: project.id)
+        } catch {
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "takesRefresh", phase: "failed", identifier: project.id, error: error)
+            errorMessage = error.localizedDescription
+        }
     }
 
     func rename(to title: String) {
-        do { project = try PresentationProjectStore.rename(project, to: title) }
-        catch { errorMessage = error.localizedDescription }
+        PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "renamePresentation", phase: "requested", identifier: project.id)
+        do {
+            project = try PresentationProjectStore.rename(project, to: title)
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "renamePresentation", phase: "completed", identifier: project.id)
+        } catch {
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "renamePresentation", phase: "failed", identifier: project.id, error: error)
+            errorMessage = error.localizedDescription
+        }
     }
 
     @discardableResult
     func delete(_ take: PresentationTake) -> Bool {
-        do { try PresentationProjectStore.delete(take); refresh(); return true }
-        catch { errorMessage = error.localizedDescription; return false }
+        PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "deleteTake", phase: "requested", identifier: take.id)
+        do {
+            try PresentationProjectStore.delete(take)
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "deleteTake", phase: "completed", identifier: take.id)
+            refresh()
+            return true
+        } catch {
+            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "deleteTake", phase: "failed", identifier: take.id, error: error)
+            errorMessage = error.localizedDescription
+            return false
+        }
     }
 }
 
@@ -214,17 +286,22 @@ private struct PresentationProjectDetailView: View {
     let onUseScript: () -> Void
     let onRecord: () -> Void
     let onChanged: () -> Void
+    let diagnosticsEnabled: () -> Bool
     @State private var showsRename = false
     @State private var draftTitle = ""
     @State private var takeToDelete: PresentationTake?
     @State private var playbackURL: PlaybackItem?
 
     init(project: PresentationProject, onUseScript: @escaping () -> Void,
-         onRecord: @escaping () -> Void, onChanged: @escaping () -> Void) {
-        _model = StateObject(wrappedValue: PresentationProjectDetailModel(project: project))
+         onRecord: @escaping () -> Void, onChanged: @escaping () -> Void,
+         diagnosticsEnabled: @escaping () -> Bool) {
+        _model = StateObject(wrappedValue: PresentationProjectDetailModel(
+            project: project, diagnosticsEnabled: diagnosticsEnabled
+        ))
         self.onUseScript = onUseScript
         self.onRecord = onRecord
         self.onChanged = onChanged
+        self.diagnosticsEnabled = diagnosticsEnabled
     }
 
     var body: some View {
@@ -245,7 +322,7 @@ private struct PresentationProjectDetailView: View {
                 ForEach(model.takes) { take in
                     let url = try? PresentationProjectStore.mediaURL(for: take)
                     Button {
-                        if let url { playbackURL = PlaybackItem(url: url) }
+                        if let url { playbackURL = PlaybackItem(url: url, recordingID: take.id) }
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: take.mode == .audio ? "waveform" : "video")
@@ -291,7 +368,10 @@ private struct PresentationProjectDetailView: View {
             }
         }
         .onAppear(perform: model.refresh)
-        .sheet(item: $playbackURL) { item in RecordingPlaybackView(url: item.url) }
+        .sheet(item: $playbackURL) { item in
+            RecordingPlaybackView(url: item.url, recordingID: item.recordingID,
+                                  diagnosticsEnabled: diagnosticsEnabled())
+        }
         .alert("Rename presentation", isPresented: $showsRename) {
             TextField("Name", text: $draftTitle)
             Button("Save") { model.rename(to: draftTitle); onChanged() }
@@ -315,6 +395,7 @@ private struct PresentationProjectDetailView: View {
 
 private struct PlaybackItem: Identifiable {
     let url: URL
+    var recordingID: UUID? = nil
     var id: String { url.absoluteString }
 }
 

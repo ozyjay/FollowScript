@@ -30,7 +30,7 @@ An accessible Record control captures the same microphone input already used by 
 
 The persisted “Keep display awake” option prevents iOS auto-lock only while the teleprompter is visible and the app is active. Backgrounding or exiting restores the idle-timer state that existed before the teleprompter opened. The option is off by default because preventing display sleep increases battery use.
 
-The persisted “Log timestamped tracking info” diagnostic option is off by default. When enabled before starting the teleprompter, FollowScript emits its existing timestamped unified-log tracking decisions, recognised text and latency instrumentation for inspection in Console or Instruments. Logging remains local to the device, but may contain words from the script.
+The persisted “Log diagnostic information” option is off by default. When enabled before starting the teleprompter, FollowScript emits its existing timestamped unified-log tracking decisions, recognised text and latency instrumentation for inspection in Console or Instruments. Library operations and local-take playback also emit opt-in presentation-management events while the switch is on. Tracking logs may contain words from the script; presentation-management events omit script text, titles and media paths.
 
 The top controls retain large tap targets and accessibility labels. Both portrait and landscape orientations are declared. Prompt text uses explicit sizes by design, while editor, settings and controls use system text styles. Device rotation, very large text and sustained noisy speech still require hands-on iPhone validation. Follow `.skills/swiftui-feature/SKILL.md` for interaction changes.
 

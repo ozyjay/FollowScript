@@ -55,16 +55,16 @@ struct SettingsView: View {
 
                 Section {
                     Toggle(
-                        "Log timestamped tracking info",
+                        "Log diagnostic information",
                         isOn: $model.settings.logsTimestampedTrackingInformation
                     )
                     .accessibilityHint(
-                        "Writes recognised text, tracking decisions and timing information to the system console"
+                        "Writes tracking and presentation-management events to the system console"
                     )
                 } header: {
                     Text("Diagnostics")
                 } footer: {
-                    Text("Off by default. Logs stay on this device and may contain words from your script.")
+                    Text("Off by default. Tracking logs may contain words from your script. Presentation logs contain only opaque IDs, operation phases and error codes.")
                 }
             }
             .navigationTitle("Settings")

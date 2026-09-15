@@ -15,6 +15,10 @@ FollowScript requests microphone access and Apple speech-recognition authorisati
 - There are no accounts, analytics SDKs, advertising identifiers, backend services, external LLMs or third-party speech APIs.
 - FollowScript does not implement script upload, cloud synchronisation or application-managed network transmission.
 
+## Optional diagnostic logs
+
+Settings can enable local unified-log diagnostics. Tracking logs may contain recognised words from the script. Presentation-management logs record operation phases, opaque presentation/take IDs and error domain/code; they do not log script text, titles, filenames or media paths. The switch is off by default. iOS controls unified-log retention and access, so turning it off stops new events but does not necessarily remove events already retained by the system.
+
 ## Files import
 
 The system Files picker can provide a user-selected document from On My iPhone, iCloud Drive or an installed File Provider. FollowScript obtains security-scoped read access only while importing, releases it immediately afterwards, and does not retain a bookmark or copy of the source file. Extracted plain text replaces the current locally stored script only after user confirmation.
