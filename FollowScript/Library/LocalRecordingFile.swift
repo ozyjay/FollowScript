@@ -20,6 +20,14 @@ struct LocalRecordingFile: Transferable, Sendable {
         }
         .exportingCondition { $0.url.pathExtension.lowercased() == "caf" }
         .suggestedFileName { $0.url.lastPathComponent }
+
+        FileRepresentation(
+            exportedContentType: UTType(importedAs: "com.apple.m4a-audio", conformingTo: .audio)
+        ) { recording in
+            try recording.sentFile(expectedExtension: "m4a")
+        }
+        .exportingCondition { $0.url.pathExtension.lowercased() == "m4a" }
+        .suggestedFileName { $0.url.lastPathComponent }
     }
 
     private func sentFile(expectedExtension: String) throws -> SentTransferredFile {

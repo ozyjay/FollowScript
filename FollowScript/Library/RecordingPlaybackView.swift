@@ -43,7 +43,7 @@ final class RecordingPlaybackModel: ObservableObject {
             }
             let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
             guard size > 0 else { throw RecordingPlaybackError.emptyFile }
-            guard ["caf", "mov"].contains(url.pathExtension.lowercased()) else {
+            guard ["caf", "m4a", "mov"].contains(url.pathExtension.lowercased()) else {
                 throw RecordingPlaybackError.unsupportedFormat
             }
 

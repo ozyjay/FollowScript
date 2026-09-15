@@ -26,7 +26,7 @@ Below the top controls, a compact status pill reports recognition and following 
 
 The optional Microphone check measures ambient level for two seconds, then asks the user to read ten nearby script words for up to eight seconds. It reports microphone level, word recognition and script alignment separately, does not save audio, and adjusts only the in-memory Quiet guidance threshold for the current prompting session. It does not relax alignment confidence. If the active route reports that input gain is adjustable, the check exposes an advanced gain slider with a noise warning; unsupported routes show no gain control.
 
-An accessible Record control captures the same microphone input already used by recognition, turns red while active and becomes Stop recording. Pausing, backgrounding or exiting finishes an active recording. The Settings screen reports whether recordings are available and provides a Share recordings control that opens the system share sheet for all locally saved CAF files.
+An accessible Record control captures the same microphone input already used by recognition, turns red while active and becomes Stop recording. Pausing, backgrounding or exiting finishes an active recording. Completed audio-only takes are saved as AAC M4A after conversion; conversion failure saves the original CAF take with a warning. Earlier CAF recordings remain playable and shareable through Library.
 
 The persisted “Keep display awake” option prevents iOS auto-lock only while the teleprompter is visible and the app is active. Backgrounding or exiting restores the idle-timer state that existed before the teleprompter opened. The option is off by default because preventing display sleep increases battery use.
 

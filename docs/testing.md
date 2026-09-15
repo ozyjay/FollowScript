@@ -8,9 +8,9 @@ The portable deterministic core harness uses the active Swift toolchain:
 swift test
 ```
 
-It compiles only `Models` and `Alignment`, then runs XCTest on macOS. This is the fastest alignment regression gate and needs no microphone, simulator or network.
+It compiles `Models`, `Alignment` and `Projects`, then runs XCTest on macOS. This is the fastest deterministic regression gate and needs no microphone, simulator or network.
 
-The Xcode project contains `FollowScriptTests`, including the same core tests, mock recognition, audio-level and input-route stream tests, recording lifecycle tests, user-selected backward repositioning, a rapid pause/resume lifecycle regression, audio-format regression, iOS 26 transcriber-option coverage and document-import fixtures. The lifecycle test holds cleanup open for 100 milliseconds and verifies that the replacement session cannot start concurrently. Recording coverage verifies that pause finalises an active recording, while level tests verify the visible quality thresholds. The conversion test repeatedly transforms 48 kHz Float32 microphone-style buffers into non-empty 16 kHz signed Int16 buffers. The transcriber configuration test verifies that volatile results, alternatives and audio time ranges remain enabled while `fastResults` is excluded. Import tests cover plain text, Markdown formatting removal, DEFLATE-compressed DOCX XML and stored ODT XML. Build without signing:
+The Xcode project contains `FollowScriptTests`, including the same core tests, mock recognition, audio-level and input-route stream tests, recording lifecycle tests, user-selected backward repositioning, a rapid pause/resume lifecycle regression, audio-format regression, AAC take-export/playback coverage, iOS 26 transcriber-option coverage and document-import fixtures. The lifecycle test holds cleanup open for 100 milliseconds and verifies that the replacement session cannot start concurrently. Recording coverage verifies that pause finalises an active recording, while level tests verify the visible quality thresholds. The conversion test repeatedly transforms 48 kHz Float32 microphone-style buffers into non-empty 16 kHz signed Int16 buffers. The AAC test exports generated PCM CAF through Apple's M4A preset, verifies the AAC track and opens it in the playback model. The transcriber configuration test verifies that volatile results, alternatives and audio time ranges remain enabled while `fastResults` is excluded. Import tests cover plain text, Markdown formatting removal, DEFLATE-compressed DOCX XML and stored ODT XML. Build without signing:
 
 ```sh
 xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -configuration Debug -sdk iphonesimulator -derivedDataPath /tmp/FollowScriptDerivedData CODE_SIGNING_ALLOWED=NO build
@@ -69,6 +69,8 @@ Recorded observation: on 13 September 2026, the user confirmed that physical-iPh
 - [ ] Connect a USB-C wireless-microphone receiver before launch; confirm its system name appears and drives recognition, metering and the saved recording
 - [ ] Disconnect and reconnect the external receiver while prompting; confirm the route display updates and the fallback warning is visible
 - [ ] Start, stop, share and play a recording; confirm pause, background and exit finalise it
+- [ ] Confirm a completed audio-only take exports AAC M4A, plays and shares; verify the source CAF is removed only after a successful save
+- [ ] Simulate AAC-export failure or low storage and confirm the original CAF take remains available with a warning
 - [ ] Horizontal, vertical and combined prompt-flip readability through the teleprompter glass in portrait and landscape
 - [ ] Omissions, repeated passages, an intentional paragraph skip and speech from behind the current position
 - [ ] Manual scrolling, delayed follow return and explicit return control
@@ -90,4 +92,4 @@ Check all three modes, microphone recognition latency during recording, front-ca
 
 ### Take playback checks
 
-On a physical iPhone, tap the full take row and confirm it opens Play rather than Share. Play an earlier CAF recording and a new MOV take through the speaker, pause, seek and close; then swipe the row to share separately. Check a missing or unreadable file shows a useful error. Simulator tests use a generated PCM CAF and a missing file; they cannot establish that the user's existing device take is valid or audible.
+On a physical iPhone, tap the full take row and confirm it opens Play rather than Share. Play an earlier CAF recording, a new AAC M4A audio take and a MOV take through the speaker, pause, seek and close; then swipe each row to share separately. Check a missing or unreadable file shows a useful error. Simulator tests use generated PCM CAF and AAC M4A files plus a missing file; they cannot establish that the user's existing device take is valid or audible.

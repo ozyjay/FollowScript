@@ -37,4 +37,13 @@ final class PresentationProjectStoreTests: XCTestCase {
                                     startedAt: Date(), endedAt: Date(), mediaFilename: "../outside.caf", duration: 1)
         XCTAssertThrowsError(try PresentationProjectStore.mediaURL(for: take))
     }
+
+    func testAACMediaFilenameIsAcceptedForNewAudioTakes() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = try PresentationProjectStore.createProject(script: "Test", rootURL: root)
+        let take = PresentationTake(id: UUID(), projectID: project.id, mode: .audio,
+                                    startedAt: Date(), endedAt: Date(), mediaFilename: "take.m4a", duration: 1)
+        XCTAssertEqual(try PresentationProjectStore.mediaURL(for: take, rootURL: root).pathExtension, "m4a")
+    }
 }

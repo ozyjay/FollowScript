@@ -66,7 +66,7 @@ enum PresentationProjectStore {
         return folders.flatMap { folder -> [URL] in
             guard let files = try? FileManager.default.contentsOfDirectory(
                 at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return [] }
-            return files.filter { ["caf", "mov"].contains($0.pathExtension.lowercased()) }
+            return files.filter { ["caf", "m4a", "mov"].contains($0.pathExtension.lowercased()) }
         }.sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
 
@@ -113,7 +113,7 @@ extension PresentationProjectStore {
 
     static func mediaURL(for take: PresentationTake, rootURL: URL? = nil) throws -> URL {
         guard take.mediaFilename == URL(fileURLWithPath: take.mediaFilename).lastPathComponent,
-              ["caf", "mov"].contains(URL(fileURLWithPath: take.mediaFilename).pathExtension.lowercased()) else {
+              ["caf", "m4a", "mov"].contains(URL(fileURLWithPath: take.mediaFilename).pathExtension.lowercased()) else {
             throw PresentationLibraryError.invalidMediaFilename
         }
         return try projectFolder(take.projectID, rootURL: rootURL).appendingPathComponent(take.mediaFilename)

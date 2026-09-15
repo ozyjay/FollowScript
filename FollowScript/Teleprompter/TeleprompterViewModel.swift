@@ -609,23 +609,54 @@ final class TeleprompterViewModel: ObservableObject {
         let audioURL: URL?
         do { audioURL = try service.stopRecording() }
         catch { recordingErrorMessage = error.localizedDescription; return }
+        var exportedAudioURL: URL?
         do {
             let videoURL = mode == .audiovisual ? try await videoCapture.stop() : nil
             guard let audioURL, let project,
                   let takeID, let recordingStartedAt else { throw VideoCaptureError.unavailable }
             let source: URL
+            let mediaExtension: String
+            var conversionError: Error?
             if let videoURL {
                 source = try await VideoTakeMuxer.combine(video: videoURL, audio: audioURL)
                 try? FileManager.default.removeItem(at: videoURL)
                 try? FileManager.default.removeItem(at: audioURL)
-            } else { source = audioURL }
+                mediaExtension = "mov"
+            } else {
+                do {
+                    source = try await AudioTakeExporter.exportAAC(from: audioURL)
+                    exportedAudioURL = source
+                    mediaExtension = "m4a"
+                } catch {
+                    source = audioURL
+                    mediaExtension = "caf"
+                    conversionError = error
+                }
+            }
             let endedAt = Date()
             let take = PresentationTake(id: takeID, projectID: project.id, mode: mode,
                                         startedAt: recordingStartedAt, endedAt: endedAt,
-                                        mediaFilename: "\(takeID).\(mode == .audio ? "caf" : "mov")",
+                                        mediaFilename: "\(takeID).\(mediaExtension)",
                                         duration: endedAt.timeIntervalSince(recordingStartedAt))
             latestRecordingURL = try PresentationProjectStore.saveTake(take, source: source)
-        } catch { recordingErrorMessage = error.localizedDescription }
+            if mediaExtension == "m4a" {
+                do {
+                    try FileManager.default.removeItem(at: audioURL)
+                } catch {
+                    recordingErrorMessage = "The AAC take was saved, but its original CAF audio could not be removed. \(error.localizedDescription)"
+                }
+            }
+            if let conversionError {
+                recordingErrorMessage = "AAC conversion failed, so this take was saved as its original CAF audio. \(conversionError.localizedDescription)"
+            }
+        } catch {
+            var message = error.localizedDescription
+            if let exportedAudioURL, FileManager.default.fileExists(atPath: exportedAudioURL.path) {
+                do { try FileManager.default.removeItem(at: exportedAudioURL) }
+                catch { message += " The unfinished AAC file could not be removed: \(error.localizedDescription)" }
+            }
+            recordingErrorMessage = message
+        }
         takeID = nil
         recordingStartedAt = nil
     }

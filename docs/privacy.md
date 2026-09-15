@@ -30,3 +30,4 @@ On iOS 18–25 the app sets `requiresOnDeviceRecognition` and refuses to start w
 The iOS 26.5 SDK integration has been compiled, but offline and live device behaviour remain unverified until the physical-device checklist in [testing.md](testing.md) is completed.
 
 Recording is opt-in per presentation. Teleprompter-only mode retains no audio or video. Audio and audiovisual takes are local media files under Documents/Projects, with JSON metadata alongside them; transient camera and audio files are removed after a successful video join. The camera preview is visual only and the teleprompter text is not included in the saved movie.
+Audio-only takes are captured locally as PCM CAF and exported locally to AAC M4A only after recording stops. The source CAF is removed after a successful M4A save; a failed export keeps the CAF take and shows a warning. No external encoder or upload is involved.
