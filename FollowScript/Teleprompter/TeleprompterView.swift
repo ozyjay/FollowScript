@@ -71,7 +71,7 @@ struct TeleprompterView: View {
                         withAnimation(.easeInOut(duration: 0.20)) {
                             proxy.scrollTo(
                                 rowID(containing: retainedToken, tokensPerRow: tokensPerRow),
-                                anchor: UnitPoint(x: 0.5, y: 0.28)
+                                anchor: UnitPoint(x: 0.5, y: 0.38)
                             )
                         }
                     }
