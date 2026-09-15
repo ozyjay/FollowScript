@@ -1,4 +1,3 @@
-import AVKit
 import SwiftUI
 
 @MainActor
@@ -93,20 +92,18 @@ struct PresentationLibraryView: View {
                 if !library.legacyRecordings.isEmpty {
                     Section("Earlier audio recordings") {
                         ForEach(library.legacyRecordings, id: \.self) { url in
-                            HStack {
-                                Button {
-                                    legacyPlaybackURL = PlaybackItem(url: url)
-                                } label: {
-                                    Label(url.deletingPathExtension().lastPathComponent, systemImage: "play.circle")
-                                        .lineLimit(1)
-                                }
-                                Spacer()
-                                ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
-                                    .accessibilityLabel("Share \(url.lastPathComponent)")
+                            Button {
+                                legacyPlaybackURL = PlaybackItem(url: url)
+                            } label: {
+                                Label(url.deletingPathExtension().lastPathComponent, systemImage: "play.circle")
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             }
-                            .frame(minHeight: 44)
-                            .swipeActions {
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Opens the audio player")
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Delete", role: .destructive) { recordingToDelete = url }
+                                LocalRecordingShareAction(url: url)
                             }
                         }
                     }
@@ -127,7 +124,7 @@ struct PresentationLibraryView: View {
             .onAppear(perform: library.refresh)
             .refreshable { library.refresh() }
             .sheet(item: $legacyPlaybackURL) { item in
-                RecordingPlayerView(url: item.url)
+                RecordingPlaybackView(url: item.url)
             }
             .confirmationDialog("Delete presentation and all its takes?", isPresented: Binding(
                 get: { projectToDelete != nil }, set: { if !$0 { projectToDelete = nil } }
@@ -233,31 +230,33 @@ private struct PresentationProjectDetailView: View {
                 }
                 ForEach(model.takes) { take in
                     let url = try? PresentationProjectStore.mediaURL(for: take)
-                    HStack(spacing: 12) {
-                        Button {
-                            if let url { playbackURL = PlaybackItem(url: url) }
-                        } label: {
-                            Label(take.mode == .audio ? "Play audio" : "Play video",
-                                  systemImage: take.mode == .audio ? "waveform" : "video")
-                                .labelStyle(.iconOnly)
+                    Button {
+                        if let url { playbackURL = PlaybackItem(url: url) }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: take.mode == .audio ? "waveform" : "video")
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(take.mode.title).font(.headline)
+                                Text(take.startedAt, format: .dateTime.day().month().hour().minute())
+                                    .font(.caption).foregroundStyle(.secondary)
+                                Text(Duration.seconds(take.duration).formatted(.time(pattern: .minuteSecond)))
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "play.circle.fill")
+                                .accessibilityHidden(true)
                         }
-                        .accessibilityLabel("Play \(take.mode.title) from \(take.startedAt.formatted())")
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(take.mode.title).font(.headline)
-                            Text(take.startedAt, format: .dateTime.day().month().hour().minute())
-                                .font(.caption).foregroundStyle(.secondary)
-                            Text(Duration.seconds(take.duration).formatted(.time(pattern: .minuteSecond)))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if let url {
-                            ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
-                                .accessibilityLabel("Share this take")
-                        }
+                        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
-                    .frame(minHeight: 52)
-                    .swipeActions {
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Play \(take.mode.title) from \(take.startedAt.formatted())")
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button("Delete", role: .destructive) { takeToDelete = take }
+                        if let url {
+                            LocalRecordingShareAction(url: url)
+                        }
                     }
                 }
             }
@@ -272,7 +271,7 @@ private struct PresentationProjectDetailView: View {
             }
         }
         .onAppear(perform: model.refresh)
-        .sheet(item: $playbackURL) { item in RecordingPlayerView(url: item.url) }
+        .sheet(item: $playbackURL) { item in RecordingPlaybackView(url: item.url) }
         .alert("Rename presentation", isPresented: $showsRename) {
             TextField("Name", text: $draftTitle)
             Button("Save") { model.rename(to: draftTitle); onChanged() }
@@ -294,35 +293,19 @@ private struct PresentationProjectDetailView: View {
     }
 }
 
-private struct RecordingPlayerView: View {
-    let url: URL
-    @State private var player: AVPlayer?
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                if let player { VideoPlayer(player: player) }
-                else { ProgressView() }
-            }
-            .navigationTitle(url.pathExtension.lowercased() == "caf" ? "Audio take" : "Video take")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
-                ToolbarItem(placement: .topBarTrailing) {
-                    ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
-                }
-            }
-            .onAppear {
-                player = AVPlayer(url: url)
-                player?.play()
-            }
-            .onDisappear { player?.pause(); player = nil }
-        }
-    }
-}
-
 private struct PlaybackItem: Identifiable {
     let url: URL
     var id: String { url.absoluteString }
+}
+
+
+private struct LocalRecordingShareAction: View {
+    let url: URL
+
+    var body: some View {
+        ShareLink(item: LocalRecordingFile(url: url),
+                  preview: SharePreview(url.lastPathComponent)) {
+            Label("Share", systemImage: "square.and.arrow.up")
+        }
+    }
 }

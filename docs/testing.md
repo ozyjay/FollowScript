@@ -87,3 +87,7 @@ A device run exposed the former duplicate-tap crash, but the corrected lifecycle
 ### Presentation modes on a physical iPhone
 
 Check all three modes, microphone recognition latency during recording, front-camera preview, prompt exclusion from exported video, audio/video sync, repeated takes, low storage, camera denial, background interruption and external microphone route changes. Simulator builds do not establish camera or microphone behaviour.
+
+### Take playback checks
+
+On a physical iPhone, tap the full take row and confirm it opens Play rather than Share. Play an earlier CAF recording and a new MOV take through the speaker, pause, seek and close; then swipe the row to share separately. Check a missing or unreadable file shows a useful error. Simulator tests use a generated PCM CAF and a missing file; they cannot establish that the user's existing device take is valid or audible.
