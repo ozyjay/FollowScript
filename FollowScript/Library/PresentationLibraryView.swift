@@ -84,8 +84,13 @@ struct PresentationLibraryView: View {
                             }
                             .frame(minHeight: 44, alignment: .leading)
                         }
-                        .swipeActions {
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button("Delete", role: .destructive) { projectToDelete = project }
+                        }
+                        .contextMenu {
+                            Button("Delete presentation", systemImage: "trash", role: .destructive) {
+                                projectToDelete = project
+                            }
                         }
                     }
                 }
@@ -104,6 +109,12 @@ struct PresentationLibraryView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Delete", role: .destructive) { recordingToDelete = url }
                                 LocalRecordingShareAction(url: url)
+                            }
+                            .contextMenu {
+                                LocalRecordingShareAction(url: url)
+                                Button("Delete recording", systemImage: "trash", role: .destructive) {
+                                    recordingToDelete = url
+                                }
                             }
                         }
                     }
@@ -126,22 +137,24 @@ struct PresentationLibraryView: View {
             .sheet(item: $legacyPlaybackURL) { item in
                 RecordingPlaybackView(url: item.url)
             }
-            .confirmationDialog("Delete presentation and all its takes?", isPresented: Binding(
+            .confirmationDialog("Delete presentation?", isPresented: Binding(
                 get: { projectToDelete != nil }, set: { if !$0 { projectToDelete = nil } }
-            )) {
+            ), titleVisibility: .visible) {
                 Button("Delete presentation", role: .destructive) {
                     if let projectToDelete { library.delete(projectToDelete) }
                     projectToDelete = nil
                 }
+                Button("Cancel", role: .cancel) { projectToDelete = nil }
             } message: { Text("This removes the script and all recordings in this presentation.") }
             .confirmationDialog("Delete this recording?", isPresented: Binding(
                 get: { recordingToDelete != nil }, set: { if !$0 { recordingToDelete = nil } }
-            )) {
+            ), titleVisibility: .visible) {
                 Button("Delete recording", role: .destructive) {
                     if let recordingToDelete { library.deleteLegacyRecording(recordingToDelete) }
                     recordingToDelete = nil
                 }
-            }
+                Button("Cancel", role: .cancel) { recordingToDelete = nil }
+            } message: { Text("This recording will be removed from this device.") }
             .confirmationDialog("Replace the script in the editor?", isPresented: Binding(
                 get: { projectToLoad != nil }, set: { if !$0 { projectToLoad = nil } }
             )) {
@@ -189,9 +202,10 @@ final class PresentationProjectDetailModel: ObservableObject {
         catch { errorMessage = error.localizedDescription }
     }
 
-    func delete(_ take: PresentationTake) {
-        do { try PresentationProjectStore.delete(take); refresh() }
-        catch { errorMessage = error.localizedDescription }
+    @discardableResult
+    func delete(_ take: PresentationTake) -> Bool {
+        do { try PresentationProjectStore.delete(take); refresh(); return true }
+        catch { errorMessage = error.localizedDescription; return false }
     }
 }
 
@@ -258,6 +272,12 @@ private struct PresentationProjectDetailView: View {
                             LocalRecordingShareAction(url: url)
                         }
                     }
+                    .contextMenu {
+                        if let url { LocalRecordingShareAction(url: url) }
+                        Button("Delete take", systemImage: "trash", role: .destructive) {
+                            takeToDelete = take
+                        }
+                    }
                 }
             }
         }
@@ -279,13 +299,13 @@ private struct PresentationProjectDetailView: View {
         }
         .confirmationDialog("Delete this take?", isPresented: Binding(
             get: { takeToDelete != nil }, set: { if !$0 { takeToDelete = nil } }
-        )) {
+        ), titleVisibility: .visible) {
             Button("Delete take", role: .destructive) {
-                if let takeToDelete { model.delete(takeToDelete) }
+                if let takeToDelete, model.delete(takeToDelete) { onChanged() }
                 takeToDelete = nil
-                onChanged()
             }
-        } message: { Text("The recording will be removed from this device.") }
+            Button("Cancel", role: .cancel) { takeToDelete = nil }
+        } message: { Text("This recording will be removed from this device.") }
         .alert("Presentation needs attention", isPresented: Binding(
             get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } }
         )) { Button("OK") { model.errorMessage = nil } }

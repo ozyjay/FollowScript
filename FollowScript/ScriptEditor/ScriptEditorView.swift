@@ -37,18 +37,18 @@ struct ScriptEditorView: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button("Library", systemImage: "folder") { presentsLibrary = true }
                         .accessibilityHint("Browse saved presentations and recordings")
+                    Menu("More options", systemImage: "ellipsis.circle") {
+                        Button("Import script", systemImage: "doc.badge.plus") {
+                            presentsFileImporter = true
+                        }
+                        .disabled(isImporting)
+                        Button("Settings", systemImage: "slider.horizontal.3") {
+                            model.presentsSettings = true
+                        }
+                    }
                     if isImporting {
                         ProgressView()
                             .accessibilityLabel("Importing document")
-                    }
-                    Button("Import script", systemImage: "doc.badge.plus") {
-                        presentsFileImporter = true
-                    }
-                    .disabled(isImporting)
-                    .accessibilityHint("Choose a document from Files to replace the current script")
-
-                    Button("Presentation settings", systemImage: "slider.horizontal.3") {
-                        model.presentsSettings = true
                     }
                 }
             }
