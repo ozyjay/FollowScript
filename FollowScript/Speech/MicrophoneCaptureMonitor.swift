@@ -50,7 +50,7 @@ final class MicrophoneCaptureMonitor: @unchecked Sendable {
     }
 
     func startRecording(format: AVAudioFormat) throws {
-        let folder = try Self.recordingsFolder()
+        let folder = try LocalRecordingStore.recordingsFolder()
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_AU_POSIX")
         formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
@@ -120,7 +120,10 @@ final class MicrophoneCaptureMonitor: @unchecked Sendable {
         return min(max((decibels + 60) / 48, 0), 1)
     }
 
-    private static func recordingsFolder() throws -> URL {
+}
+
+enum LocalRecordingStore {
+    static func recordingsFolder() throws -> URL {
         guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             throw AudioRecordingError.couldNotCreateFolder
         }
@@ -131,5 +134,22 @@ final class MicrophoneCaptureMonitor: @unchecked Sendable {
         } catch {
             throw AudioRecordingError.couldNotCreateFolder
         }
+    }
+
+    static func recordings() -> [URL] {
+        guard let folder = try? recordingsFolder(),
+              let files = try? FileManager.default.contentsOfDirectory(
+                at: folder,
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+              ) else { return [] }
+
+        return files
+            .filter { $0.pathExtension.lowercased() == "caf" }
+            .sorted { lhs, rhs in
+                let leftDate = try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                let rightDate = try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                return (leftDate ?? .distantPast) > (rightDate ?? .distantPast)
+            }
     }
 }

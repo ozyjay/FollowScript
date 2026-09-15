@@ -8,7 +8,7 @@ struct TeleprompterView: View {
     @State private var showsInterfaceChrome = true
     @State private var pausedByUser = false
     @State private var previousIdleTimerDisabled: Bool?
-    @State private var requestedPromptRow: PromptRow?
+    @State private var requestedPromptToken: Int?
     @Environment(\.scenePhase) private var scenePhase
 
     @Binding var settings: FollowScriptSettings
@@ -40,17 +40,24 @@ struct TeleprompterView: View {
             GeometryReader { geometry in
                 ScrollViewReader { proxy in
                     ScrollView {
-                        let tokensPerRow = promptTokensPerRow(for: geometry.size)
-                        LazyVStack(alignment: swiftUIAlignment, spacing: settings.lineSpacing) {
+                        VStack(alignment: swiftUIAlignment, spacing: 0) {
                             Color.clear.frame(height: geometry.size.height * 0.28)
-                            ForEach(rows(tokensPerRow: tokensPerRow)) { row in
-                                Text(rowText(row))
+                            PromptFlowLayout(
+                                lineSpacing: settings.lineSpacing,
+                                centresAllLines: settings.textAlignment == .centre,
+                                centresHighlightedLine: settings.highlightsActivePhrase
+                                    && settings.centresHighlightedText
+                            ) {
+                                ForEach(model.script.tokens) { token in
+                                    Text(tokenText(token))
                                     .font(.system(size: settings.fontSize, weight: .regular, design: .rounded))
                                     .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity, alignment: alignment(for: row))
-                                    .multilineTextAlignment(textAlignment(for: row))
-                                    .id(row.id)
-                                    .accessibilityLabel(row.plainText)
+                                    .layoutValue(
+                                        key: HighlightedPromptTokenKey.self,
+                                        value: token.index == model.nextPromptTokenIndex
+                                    )
+                                    .id(token.index)
+                                    .accessibilityLabel(token.original)
                                     .accessibilityHint(
                                         showsInterfaceChrome
                                             ? "Double-tap to move speech following to this passage"
@@ -59,11 +66,12 @@ struct TeleprompterView: View {
                                     .contentShape(Rectangle())
                                     .onTapGesture {
                                         if showsInterfaceChrome {
-                                            requestedPromptRow = row
+                                            requestedPromptToken = token.index
                                         } else {
                                             withAnimation { showsInterfaceChrome = true }
                                         }
                                     }
+                                }
                             }
                             Color.clear.frame(height: geometry.size.height * 0.55)
                         }
@@ -76,11 +84,10 @@ struct TeleprompterView: View {
                     )
                     .onChange(of: model.scrollTarget) { _, target in
                         guard let target, !model.automaticFollowingSuspended else { return }
-                        let tokensPerRow = promptTokensPerRow(for: geometry.size)
                         let retainedToken = max(0, target - 2)
                         withAnimation(.easeInOut(duration: 0.20)) {
                             proxy.scrollTo(
-                                rowID(containing: retainedToken, tokensPerRow: tokensPerRow),
+                                retainedToken,
                                 anchor: UnitPoint(x: 0.5, y: 0.38)
                             )
                         }
@@ -144,14 +151,14 @@ struct TeleprompterView: View {
             titleVisibility: .visible
         ) {
             Button("Continue from here") {
-                if let requestedPromptRow {
-                    model.moveFollowing(to: requestedPromptRow.id)
+                if let requestedPromptToken {
+                    model.moveFollowing(to: requestedPromptToken)
                 }
-                requestedPromptRow = nil
+                requestedPromptToken = nil
             }
-            Button("Cancel", role: .cancel) { requestedPromptRow = nil }
+            Button("Cancel", role: .cancel) { requestedPromptToken = nil }
         } message: {
-            Text(requestedPromptRow?.plainText ?? "")
+            Text(promptContext(around: requestedPromptToken))
         }
 #if DEBUG
         .sheet(isPresented: $showsDiagnostics) {
@@ -208,12 +215,6 @@ struct TeleprompterView: View {
                 .foregroundStyle(model.isRecording ? .red : .primary)
                 .disabled(!model.isListening && !model.isRecording)
 
-                if let recordingURL = model.latestRecordingURL {
-                    ShareLink(item: recordingURL) {
-                        Label("Share latest recording", systemImage: "square.and.arrow.up")
-                    }
-                }
-
                 Button(
                     model.isListening ? "Pause" : "Resume",
                     systemImage: model.isListening ? "pause.fill" : "play.fill"
@@ -258,57 +259,30 @@ struct TeleprompterView: View {
         .background(.black.opacity(0.82))
     }
 
-    private func rows(tokensPerRow: Int) -> [PromptRow] {
-        stride(from: 0, to: model.script.tokens.count, by: tokensPerRow).map { start in
-            let end = min(start + tokensPerRow - 1, model.script.tokens.count - 1)
-            return PromptRow(id: start, tokens: Array(model.script.tokens[start...end]))
-        }
-    }
-
-    private func rowText(_ row: PromptRow) -> AttributedString {
-        var result = AttributedString()
-        for token in row.tokens {
-            var piece = AttributedString(token.displayText)
-            if settings.highlightsActivePhrase, token.index == model.nextPromptTokenIndex {
-                piece.foregroundColor = .yellow
-                piece.backgroundColor = Color.yellow.opacity(0.14)
-            } else if settings.highlightsActivePhrase,
-                      let partialRange = model.partialMatchedRange,
-                      partialRange.contains(token.index) {
-                piece.foregroundColor = Color.yellow.opacity(0.72)
-                piece.backgroundColor = Color.yellow.opacity(0.07)
-            } else if let spokenThrough = model.spokenThroughTokenIndex,
-                      token.index <= spokenThrough {
-                piece.foregroundColor = Color(red: 0.35, green: 0.65, blue: 1)
-            }
-            result.append(piece)
+    private func tokenText(_ token: ScriptToken) -> AttributedString {
+        var result = AttributedString(token.displayText)
+        if settings.highlightsActivePhrase, token.index == model.nextPromptTokenIndex {
+            result.foregroundColor = .yellow
+            result.backgroundColor = Color.yellow.opacity(0.14)
+        } else if settings.highlightsActivePhrase,
+                  let partialRange = model.partialMatchedRange,
+                  partialRange.contains(token.index) {
+            result.foregroundColor = Color.yellow.opacity(0.72)
+            result.backgroundColor = Color.yellow.opacity(0.07)
+        } else if let spokenThrough = model.spokenThroughTokenIndex,
+                  token.index <= spokenThrough {
+            result.foregroundColor = Color(red: 0.35, green: 0.65, blue: 1)
         }
         return result
     }
 
-    private func promptTokensPerRow(for size: CGSize) -> Int {
-        size.height > size.width ? 4 : 6
-    }
-
-    private func rowID(containing token: Int, tokensPerRow: Int) -> Int {
-        (token / tokensPerRow) * tokensPerRow
-    }
     private var swiftUIAlignment: HorizontalAlignment { settings.textAlignment == .centre ? .center : .leading }
-    private var frameAlignment: Alignment { settings.textAlignment == .centre ? .center : .leading }
-    private var textAlignment: TextAlignment { settings.textAlignment == .centre ? .center : .leading }
 
-    private func alignment(for row: PromptRow) -> Alignment {
-        shouldCentreHighlightedText(in: row) ? .center : frameAlignment
-    }
-
-    private func textAlignment(for row: PromptRow) -> TextAlignment {
-        shouldCentreHighlightedText(in: row) ? .center : textAlignment
-    }
-
-    private func shouldCentreHighlightedText(in row: PromptRow) -> Bool {
-        settings.highlightsActivePhrase
-            && settings.centresHighlightedText
-            && row.containsToken(model.nextPromptTokenIndex)
+    private func promptContext(around tokenIndex: Int?) -> String {
+        guard let tokenIndex else { return "" }
+        let lowerBound = max(0, tokenIndex - 3)
+        let upperBound = min(model.script.tokens.count, tokenIndex + 7)
+        return model.script.tokens[lowerBound..<upperBound].map(\.original).joined(separator: " ")
     }
 
     private var errorBinding: Binding<Bool> {
@@ -324,8 +298,8 @@ struct TeleprompterView: View {
 
     private var repositionConfirmationBinding: Binding<Bool> {
         Binding(
-            get: { requestedPromptRow != nil },
-            set: { if !$0 { requestedPromptRow = nil } }
+            get: { requestedPromptToken != nil },
+            set: { if !$0 { requestedPromptToken = nil } }
         )
     }
 
@@ -351,6 +325,65 @@ struct TeleprompterView: View {
         UIApplication.shared.isIdleTimerDisabled = previousIdleTimerDisabled
         self.previousIdleTimerDisabled = nil
     }
+}
+
+private struct PromptFlowLayout: Layout {
+    let lineSpacing: CGFloat
+    let centresAllLines: Bool
+    let centresHighlightedLine: Bool
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        layout(in: proposal.replacingUnspecifiedDimensions().width, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = layout(in: bounds.width, subviews: subviews)
+        for (index, point) in result.positions.enumerated() {
+            subviews[index].place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y), proposal: .unspecified)
+        }
+    }
+
+    private func layout(in width: CGFloat, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
+        var positions: [CGPoint] = []
+        var lines: [Range<Int>] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var lineStart = 0
+
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                lines.append(lineStart..<index)
+                x = 0
+                y += lineHeight + lineSpacing
+                lineHeight = 0
+                lineStart = index
+            }
+            positions.append(CGPoint(x: x, y: y))
+            x += size.width
+            lineHeight = max(lineHeight, size.height)
+        }
+        if lineStart < subviews.count { lines.append(lineStart..<subviews.count) }
+
+        for line in lines {
+            guard let lastIndex = line.last else { continue }
+            let lastSize = subviews[lastIndex].sizeThatFits(.unspecified)
+            let lineWidth = positions[lastIndex].x + lastSize.width
+            let hasHighlight = line.contains { index in
+                subviews[index][HighlightedPromptTokenKey.self]
+            }
+            if centresAllLines || (centresHighlightedLine && hasHighlight) {
+                let offset = max(0, (width - lineWidth) / 2)
+                for index in line { positions[index].x += offset }
+            }
+        }
+        return (CGSize(width: width, height: y + lineHeight), positions)
+    }
+}
+
+private struct HighlightedPromptTokenKey: LayoutValueKey {
+    static let defaultValue = false
 }
 
 private struct TrackingStatusView: View {
@@ -504,16 +537,5 @@ private struct MicrophoneLevelView: View {
                 .compactMap { $0 }
                 .joined(separator: ", ")
         )
-    }
-}
-
-private struct PromptRow: Identifiable {
-    let id: Int
-    let tokens: [ScriptToken]
-    var plainText: String { tokens.map(\.displayText).joined() }
-
-    func containsToken(_ tokenIndex: Int?) -> Bool {
-        guard let tokenIndex else { return false }
-        return tokens.contains { $0.index == tokenIndex }
     }
 }
