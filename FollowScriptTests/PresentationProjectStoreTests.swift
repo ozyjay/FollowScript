@@ -1,6 +1,10 @@
 import Foundation
 import XCTest
+#if canImport(FollowScriptCore)
 @testable import FollowScriptCore
+#else
+@testable import FollowScript
+#endif
 
 final class PresentationProjectStoreTests: XCTestCase {
     func testProjectAndTakeLifecycleKeepsMediaOutsideMetadata() throws {

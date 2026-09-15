@@ -142,22 +142,32 @@ final class MockSpeechRecognitionServiceTests: XCTestCase {
         model.stop()
     }
 
-    func testPausingFinalisesActiveRecording() async throws {
+    func testPausingFinalisesActiveAudioRecording() async throws {
         let service = MockSpeechRecognitionService()
-        service.recordingURL = URL(fileURLWithPath: "/tmp/test-recording.caf")
-        let model = TeleprompterViewModel(scriptText: "A short script.", service: service)
+        let project = PresentationProject(id: UUID(), title: "Test", script: "A short script.", createdAt: Date())
+        let model = TeleprompterViewModel(
+            scriptText: "A short script.", mode: .audio, project: project, service: service
+        )
 
         model.start()
         try await Task.sleep(for: .milliseconds(30))
-        model.toggleRecording()
+        await model.toggleRecording()
         XCTAssertTrue(model.isRecording)
+        XCTAssertTrue(service.isRecording)
 
         model.pause()
-
+        try await Task.sleep(for: .milliseconds(30))
         XCTAssertFalse(model.isRecording)
-        XCTAssertEqual(model.latestRecordingURL, service.recordingURL)
         XCTAssertFalse(service.isRecording)
         model.stop()
+    }
+
+    func testTeleprompterOnlyDoesNotStartRecording() async {
+        let service = MockSpeechRecognitionService()
+        let model = TeleprompterViewModel(scriptText: "A short script.", mode: .teleprompter, service: service)
+        await model.toggleRecording()
+        XCTAssertFalse(model.isRecording)
+        XCTAssertFalse(service.isRecording)
     }
 
     func testMicrophoneQualityThresholds() {

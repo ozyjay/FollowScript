@@ -9,6 +9,7 @@ struct TeleprompterView: View {
     @State private var pausedByUser = false
     @State private var previousIdleTimerDisabled: Bool?
     @State private var requestedPromptToken: Int?
+    @State private var interfaceOrientation: UIInterfaceOrientation = .portrait
     @Environment(\.scenePhase) private var scenePhase
 
     @Binding var settings: FollowScriptSettings
@@ -46,10 +47,23 @@ struct TeleprompterView: View {
                     .accessibilityHidden(true)
             }
             GeometryReader { geometry in
+                let isVideo = model.mode == .audiovisual
+                let placement = settings.videoPromptPlacement.resolved(
+                    isLandscape: geometry.size.width > geometry.size.height,
+                    orientation: interfaceOrientation
+                )
+                let isSidePrompt = isVideo && placement != .top
+                let viewportWidth = isVideo
+                    ? min(geometry.size.width * (isSidePrompt ? 0.38 : 0.76), isSidePrompt ? 360 : 500)
+                    : geometry.size.width
+                let viewportHeight = isVideo
+                    ? (isSidePrompt ? geometry.size.height * 0.58 : min(geometry.size.height * 0.44, 360))
+                    : geometry.size.height
+
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: swiftUIAlignment, spacing: 0) {
-                            Color.clear.frame(height: geometry.size.height * 0.28)
+                            Color.clear.frame(height: isVideo ? 20 : geometry.size.height * 0.28)
                             PromptFlowLayout(
                                 lineSpacing: settings.lineSpacing,
                                 centresAllLines: settings.textAlignment == .centre,
@@ -81,9 +95,9 @@ struct TeleprompterView: View {
                                     }
                                 }
                             }
-                            Color.clear.frame(height: geometry.size.height * 0.55)
+                            Color.clear.frame(height: isVideo ? viewportHeight * 0.55 : geometry.size.height * 0.55)
                         }
-                        .padding(.horizontal, max(24, geometry.size.width * 0.07))
+                        .padding(.horizontal, isVideo ? 14 : max(24, geometry.size.width * 0.07))
                         .scaleEffect(x: settings.mirrorsPrompt ? -1 : 1, y: 1, anchor: .center)
                     }
                     .scrollIndicators(.hidden)
@@ -96,17 +110,29 @@ struct TeleprompterView: View {
                         withAnimation(.easeInOut(duration: 0.20)) {
                             proxy.scrollTo(
                                 retainedToken,
-                                anchor: UnitPoint(x: 0.5, y: 0.38)
+                                anchor: UnitPoint(x: 0.5, y: isVideo ? (isSidePrompt ? 0.55 : 0.16) : 0.38)
                             )
                         }
                     }
                     .scaleEffect(x: 1, y: settings.flipsPromptVertically ? -1 : 1, anchor: .center)
                 }
+                .frame(width: viewportWidth, height: viewportHeight)
+                .background(isVideo ? Color.black.opacity(0.62) : .clear,
+                            in: RoundedRectangle(cornerRadius: isVideo ? 18 : 0))
+                .frame(maxWidth: .infinity, maxHeight: .infinity,
+                       alignment: isVideo ? placement.viewportAlignment : .top)
             }
 
             if showsInterfaceChrome {
-                controls
+                if model.mode == .audiovisual {
+                    VStack {
+                        Spacer()
+                        controls
+                    }
                     .transition(.opacity)
+                } else {
+                    controls.transition(.opacity)
+                }
             }
 
             if model.automaticFollowingSuspended {
@@ -117,12 +143,18 @@ struct TeleprompterView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, model.mode == .audiovisual ? 180 : 24)
                 }
             }
         }
         .preferredColorScheme(.dark)
-        .onAppear { beginManagingDisplaySleep() }
+        .onAppear {
+            updateInterfaceOrientation()
+            beginManagingDisplaySleep()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+            updateInterfaceOrientation()
+        }
         .task {
             if model.mode == .audiovisual { await model.prepareVideo() }
             model.start()
@@ -246,6 +278,23 @@ struct TeleprompterView: View {
                 .disabled(!model.isListening)
             }
 
+            if model.mode == .audiovisual {
+                HStack {
+                    Text("Prompt near camera").font(.caption.weight(.semibold))
+                    Spacer()
+                    Menu {
+                        ForEach(FollowScriptSettings.VideoPromptPlacement.allCases) { placement in
+                            Button(placement.title) { settings.videoPromptPlacement = placement }
+                        }
+                    } label: {
+                        Label(settings.videoPromptPlacement.title, systemImage: "viewfinder")
+                    }
+                    .labelStyle(.titleAndIcon)
+                    .frame(minHeight: 44)
+                    .accessibilityHint("Choose the edge nearest the front camera")
+                }
+            }
+
             TrackingStatusView(
                 recognition: model.recognitionActivity,
                 following: model.followingPresentationState
@@ -270,6 +319,12 @@ struct TeleprompterView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .background(.black.opacity(0.82))
+    }
+
+    private func updateInterfaceOrientation() {
+        interfaceOrientation = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.interfaceOrientation }
+            .first ?? .portrait
     }
 
     private func tokenText(_ token: ScriptToken) -> AttributedString {
@@ -337,6 +392,16 @@ struct TeleprompterView: View {
         guard let previousIdleTimerDisabled else { return }
         UIApplication.shared.isIdleTimerDisabled = previousIdleTimerDisabled
         self.previousIdleTimerDisabled = nil
+    }
+}
+
+private extension FollowScriptSettings.VideoPromptPlacement {
+    var viewportAlignment: Alignment {
+        switch self {
+        case .automatic, .top: .top
+        case .leading: .topLeading
+        case .trailing: .topTrailing
+        }
     }
 }
 

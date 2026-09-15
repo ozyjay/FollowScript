@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import FollowScript
 
 final class FollowScriptSettingsTests: XCTestCase {
@@ -43,4 +44,24 @@ final class FollowScriptSettingsTests: XCTestCase {
         XCTAssertFalse(decoded.ignoresSquareBracketedText)
         XCTAssertFalse(decoded.removesExtraWhitespace)
     }
+
+    func testVideoPromptPlacementDefaultsForOlderSavedSettings() throws {
+        let data = Data(#"{"fontSize":42,"lastPresentationMode":"audiovisual"}"#.utf8)
+        let settings = try JSONDecoder().decode(FollowScriptSettings.self, from: data)
+        XCTAssertEqual(settings.videoPromptPlacement, .automatic)
+    }
+
+    func testVideoPromptPlacementPersistsAndFollowsCameraEdge() throws {
+        var settings = FollowScriptSettings()
+        settings.videoPromptPlacement = .trailing
+        let decoded = try JSONDecoder().decode(FollowScriptSettings.self, from: JSONEncoder().encode(settings))
+        XCTAssertEqual(decoded.videoPromptPlacement, .trailing)
+        XCTAssertEqual(FollowScriptSettings.VideoPromptPlacement.automatic.resolved(
+            isLandscape: false, orientation: .portrait), .top)
+        XCTAssertEqual(FollowScriptSettings.VideoPromptPlacement.automatic.resolved(
+            isLandscape: true, orientation: .landscapeLeft), .trailing)
+        XCTAssertEqual(FollowScriptSettings.VideoPromptPlacement.automatic.resolved(
+            isLandscape: true, orientation: .landscapeRight), .leading)
+    }
+
 }
