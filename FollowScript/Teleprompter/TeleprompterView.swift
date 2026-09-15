@@ -17,6 +17,7 @@ struct TeleprompterView: View {
     init(
         scriptText: String,
         mode: PresentationMode,
+        project: PresentationProject? = nil,
         ignoresSquareBracketedText: Bool,
         removesExtraWhitespace: Bool,
         logsTimestampedTrackingInformation: Bool,
@@ -27,6 +28,7 @@ struct TeleprompterView: View {
             wrappedValue: TeleprompterViewModel(
                 scriptText: scriptText,
                 mode: mode,
+                project: project,
                 ignoresSquareBracketedText: ignoresSquareBracketedText,
                 removesExtraWhitespace: removesExtraWhitespace,
                 logsTimestampedTrackingInformation: logsTimestampedTrackingInformation

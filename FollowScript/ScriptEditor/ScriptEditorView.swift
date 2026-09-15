@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ScriptEditorView: View {
     @ObservedObject var model: AppModel
+    @State private var presentsLibrary = false
+    @State private var recordProjectPendingModePicker = false
     @State private var presentsModePicker = false
     @State private var selectedMode: PresentationMode = .teleprompter
     @State private var presentsFileImporter = false
@@ -33,6 +35,8 @@ struct ScriptEditorView: View {
             .navigationTitle("FollowScript")
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button("Library", systemImage: "folder") { presentsLibrary = true }
+                        .accessibilityHint("Browse saved presentations and recordings")
                     if isImporting {
                         ProgressView()
                             .accessibilityLabel("Importing document")
@@ -46,6 +50,21 @@ struct ScriptEditorView: View {
                     Button("Presentation settings", systemImage: "slider.horizontal.3") {
                         model.presentsSettings = true
                     }
+                }
+            }
+            .sheet(isPresented: $presentsLibrary) {
+                PresentationLibraryView(appModel: model, onRecordProject: { project in
+                    model.scriptText = project.script
+                    model.selectedProject = project
+                    selectedMode = model.settings.lastPresentationMode
+                    recordProjectPendingModePicker = true
+                    presentsLibrary = false
+                })
+            }
+            .onChange(of: presentsLibrary) { _, isPresented in
+                if !isPresented && recordProjectPendingModePicker {
+                    recordProjectPendingModePicker = false
+                    presentsModePicker = true
                 }
             }
             .sheet(isPresented: $model.presentsSettings) {
@@ -66,6 +85,7 @@ struct ScriptEditorView: View {
                 TeleprompterView(
                     scriptText: model.scriptText,
                     mode: selectedMode,
+                    project: model.selectedProject,
                     ignoresSquareBracketedText: model.settings.ignoresSquareBracketedText,
                     removesExtraWhitespace: model.settings.removesExtraWhitespace,
                     logsTimestampedTrackingInformation: model.settings.logsTimestampedTrackingInformation,

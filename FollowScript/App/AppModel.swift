@@ -9,8 +9,13 @@ final class AppModel: ObservableObject {
     }
 
     @Published var scriptText: String {
-        didSet { defaults.set(scriptText, forKey: Keys.script) }
+        didSet {
+            defaults.set(scriptText, forKey: Keys.script)
+            if selectedProject?.script != scriptText { selectedProject = nil }
+        }
     }
+
+    @Published var selectedProject: PresentationProject?
 
     @Published var settings: FollowScriptSettings {
         didSet {

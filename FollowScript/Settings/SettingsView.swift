@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
-    @State private var recordings: [URL] = []
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -55,26 +54,6 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    ShareLink(items: recordings) {
-                        Label("Share recordings", systemImage: "square.and.arrow.up")
-                    }
-                    .disabled(recordings.isEmpty)
-                    .accessibilityHint(
-                        recordings.isEmpty
-                            ? "No recordings have been saved yet"
-                            : "Opens the share sheet for all saved recordings"
-                    )
-                } header: {
-                    Text("Recordings")
-                } footer: {
-                    Text(
-                        recordings.isEmpty
-                            ? "Record audio in the teleprompter to make it available here."
-                            : "Shares all \(recordings.count) locally saved recording\(recordings.count == 1 ? "" : "s")."
-                    )
-                }
-
-                Section {
                     Toggle(
                         "Log timestamped tracking info",
                         isOn: $model.settings.logsTimestampedTrackingInformation
@@ -90,7 +69,6 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .onAppear { recordings = PresentationProjectStore.mediaFiles() + LocalRecordingStore.recordings() }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

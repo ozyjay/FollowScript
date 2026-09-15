@@ -263,6 +263,7 @@ final class TeleprompterViewModel: ObservableObject {
     init(
         scriptText: String,
         mode: PresentationMode = .teleprompter,
+        project: PresentationProject? = nil,
         ignoresSquareBracketedText: Bool = true,
         removesExtraWhitespace: Bool = true,
         logsTimestampedTrackingInformation: Bool = false,
@@ -279,6 +280,7 @@ final class TeleprompterViewModel: ObservableObject {
             )
         )
         self.mode = mode
+        self.project = project
         self.service = service ?? SpeechServiceFactory.live()
         self.engine = engine
         self.microphoneCheckRoomDuration = microphoneCheckRoomDuration

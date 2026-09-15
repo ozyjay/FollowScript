@@ -12,9 +12,9 @@ let package = Package(
             name: "FollowScriptCore",
             path: "FollowScript",
             exclude: [
-                "App", "Assets.xcassets", "Info.plist", "ScriptEditor", "Settings", "Speech", "Teleprompter"
+                "App", "Assets.xcassets", "Info.plist", "ScriptEditor", "Settings", "Speech", "Teleprompter", "Capture", "Library"
             ],
-            sources: ["Models", "Alignment"]
+            sources: ["Models", "Alignment", "Projects"]
         ),
         .testTarget(
             name: "FollowScriptCoreTests",
@@ -27,7 +27,8 @@ let package = Package(
                 "ScriptAlignmentEngineTests.swift",
                 "ScriptTokenizerTests.swift",
                 "SpeechRecognitionSegmentAssemblerTests.swift",
-                "StreamingASRAlignmentTests.swift"
+                "StreamingASRAlignmentTests.swift",
+                "PresentationProjectStoreTests.swift"
             ]
         )
     ]
