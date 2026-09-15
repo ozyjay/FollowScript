@@ -67,10 +67,11 @@ struct TeleprompterView: View {
                     .onChange(of: model.scrollTarget) { _, target in
                         guard let target, !model.automaticFollowingSuspended else { return }
                         let tokensPerRow = promptTokensPerRow(for: geometry.size)
+                        let retainedToken = max(0, target - 2)
                         withAnimation(.easeInOut(duration: 0.20)) {
                             proxy.scrollTo(
-                                rowID(containing: target, tokensPerRow: tokensPerRow),
-                                anchor: UnitPoint(x: 0.5, y: 0.33)
+                                rowID(containing: retainedToken, tokensPerRow: tokensPerRow),
+                                anchor: UnitPoint(x: 0.5, y: 0.28)
                             )
                         }
                     }
@@ -269,9 +270,9 @@ struct TeleprompterView: View {
                       partialRange.contains(token.index) {
                 piece.foregroundColor = Color.yellow.opacity(0.72)
                 piece.backgroundColor = Color.yellow.opacity(0.07)
-            } else if let dimmedThrough = model.dimmedThroughTokenIndex,
-                      token.index <= dimmedThrough {
-                piece.foregroundColor = Color.white.opacity(0.48)
+            } else if let spokenThrough = model.spokenThroughTokenIndex,
+                      token.index <= spokenThrough {
+                piece.foregroundColor = Color(red: 0.35, green: 0.65, blue: 1)
             }
             result.append(piece)
         }
