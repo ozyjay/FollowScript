@@ -223,7 +223,7 @@ struct RecordingPlaybackView: View {
                                 .background(.black)
                         }
                     }
-                    .ignoresSafeArea(edges: .bottom)
+                    .ignoresSafeArea()
                 } else {
                     Group {
                         if let error = model.errorMessage {
@@ -245,6 +245,7 @@ struct RecordingPlaybackView: View {
             .padding(model.isVideo && model.errorMessage == nil ? 0 : 20)
             .navigationTitle(model.isVideo ? "Video take" : "Audio take")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(model.isVideo ? .hidden : .automatic, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -289,7 +290,7 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
         let controller = AVPlayerViewController()
         controller.player = player
         controller.showsPlaybackControls = true
-        controller.videoGravity = .resizeAspect
+        controller.videoGravity = .resizeAspectFill
         controller.allowsPictureInPicturePlayback = true
         return controller
     }
