@@ -1,4 +1,5 @@
 import AVFoundation
+import AVKit
 import Combine
 import SwiftUI
 import UIKit
@@ -211,9 +212,9 @@ struct RecordingPlaybackView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 if model.isVideo, model.errorMessage == nil {
-                    ZStack(alignment: .top) {
+                    Group {
                         if let player = model.videoPlayer {
-                            VideoPlaybackSurface(player: player)
+                            SystemVideoPlayer(player: player)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 .background(.black)
                         } else {
@@ -221,12 +222,6 @@ struct RecordingPlaybackView: View {
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 .background(.black)
                         }
-
-                        playbackControls
-                            .padding(20)
-                            .foregroundStyle(.white)
-                            .tint(.white)
-                            .shadow(color: .black.opacity(0.8), radius: 3, y: 1)
                     }
                     .ignoresSafeArea(edges: .bottom)
                 } else {
@@ -287,22 +282,19 @@ struct RecordingPlaybackView: View {
     }
 }
 
-private struct VideoPlaybackSurface: UIViewRepresentable {
+private struct SystemVideoPlayer: UIViewControllerRepresentable {
     let player: AVPlayer
 
-    func makeUIView(context: Context) -> VideoPlaybackView {
-        let view = VideoPlaybackView()
-        view.playerLayer.videoGravity = .resizeAspectFill
-        view.playerLayer.player = player
-        return view
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.showsPlaybackControls = true
+        controller.videoGravity = .resizeAspect
+        controller.allowsPictureInPicturePlayback = true
+        return controller
     }
 
-    func updateUIView(_ uiView: VideoPlaybackView, context: Context) {
-        uiView.playerLayer.player = player
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        controller.player = player
     }
-}
-
-private final class VideoPlaybackView: UIView {
-    override class var layerClass: AnyClass { AVPlayerLayer.self }
-    var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
 }
