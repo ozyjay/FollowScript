@@ -58,7 +58,9 @@ struct TeleprompterView: View {
                 let viewportWidth = isVideo
                     ? min(geometry.size.width * (isSidePrompt ? 0.38 : 0.76), isSidePrompt ? 360 : 500)
                     : geometry.size.width
-                let viewportHeight = geometry.size.height
+                let viewportHeight = isVideo
+                    ? min(geometry.size.height * (isSidePrompt ? 0.48 : 0.34), isSidePrompt ? 260 : 300)
+                    : geometry.size.height
 
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -110,7 +112,7 @@ struct TeleprompterView: View {
                         withAnimation(.easeInOut(duration: 0.20)) {
                             proxy.scrollTo(
                                 retainedToken,
-                                anchor: UnitPoint(x: 0.5, y: isVideo ? (isSidePrompt ? 0.55 : 0.16) : 0.38)
+                                anchor: UnitPoint(x: 0.5, y: isVideo ? (isSidePrompt ? 0.45 : 0.18) : 0.38)
                             )
                         }
                     }
@@ -399,8 +401,8 @@ private extension FollowScriptSettings.VideoPromptPlacement {
     var viewportAlignment: Alignment {
         switch self {
         case .automatic, .top: .top
-        case .leading: .topLeading
-        case .trailing: .topTrailing
+        case .leading: .leading
+        case .trailing: .trailing
         }
     }
 }
