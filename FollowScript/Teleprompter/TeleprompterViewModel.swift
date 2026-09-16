@@ -211,6 +211,7 @@ final class TeleprompterViewModel: ObservableObject {
     let mode: PresentationMode
     let videoCapture = VideoCaptureCoordinator()
     private let videoFrameRate: FollowScriptSettings.VideoFrameRate
+    private let videoFocusMode: FollowScriptSettings.VideoFocusMode
     private var project: PresentationProject?
     private var takeID: UUID?
     private var recordingStartedAt: Date?
@@ -268,6 +269,7 @@ final class TeleprompterViewModel: ObservableObject {
         ignoresSquareBracketedText: Bool = true,
         removesExtraWhitespace: Bool = true,
         videoFrameRate: FollowScriptSettings.VideoFrameRate = .automatic,
+        videoFocusMode: FollowScriptSettings.VideoFocusMode = .cameraDefault,
         logsTimestampedTrackingInformation: Bool = false,
         service: (any SpeechRecognitionService)? = nil,
         engine: ScriptAlignmentEngine = ScriptAlignmentEngine(),
@@ -289,6 +291,7 @@ final class TeleprompterViewModel: ObservableObject {
         self.microphoneCheckReadingDuration = microphoneCheckReadingDuration
         self.logsTimestampedTrackingInformation = logsTimestampedTrackingInformation
         self.videoFrameRate = videoFrameRate
+        self.videoFocusMode = videoFocusMode
         trackingLatency = TrackingLatencyInstrument(isEnabled: logsTimestampedTrackingInformation)
     }
 
@@ -384,7 +387,7 @@ final class TeleprompterViewModel: ObservableObject {
     }
 
     func prepareVideo() async {
-        do { try await videoCapture.prepare(frameRate: videoFrameRate) }
+        do { try await videoCapture.prepare(frameRate: videoFrameRate, focusMode: videoFocusMode) }
         catch { recordingErrorMessage = error.localizedDescription }
     }
 
@@ -395,7 +398,9 @@ final class TeleprompterViewModel: ObservableObject {
             return
         }
         do {
-            if mode == .audiovisual && !videoCapture.isReady { try await videoCapture.prepare(frameRate: videoFrameRate) }
+            if mode == .audiovisual && !videoCapture.isReady {
+                try await videoCapture.prepare(frameRate: videoFrameRate, focusMode: videoFocusMode)
+            }
             if project == nil { project = try PresentationProjectStore.createProject(script: script.text) }
             try service.startRecording()
             if mode == .audiovisual {

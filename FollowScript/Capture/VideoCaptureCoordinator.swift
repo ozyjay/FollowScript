@@ -10,7 +10,8 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
     private var rawVideoURL: URL?
     @Published private(set) var isReady = false
 
-    func prepare(frameRate: FollowScriptSettings.VideoFrameRate) async throws {
+    func prepare(frameRate: FollowScriptSettings.VideoFrameRate,
+                 focusMode: FollowScriptSettings.VideoFocusMode) async throws {
         guard !isReady else { return }
         guard await AVCaptureDevice.requestAccess(for: .video) else { throw VideoCaptureError.permissionDenied }
         guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
@@ -27,6 +28,7 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
             if let framesPerSecond = frameRate.framesPerSecond {
                 try configure(camera: camera, framesPerSecond: framesPerSecond)
             }
+            try configure(camera: camera, focusMode: focusMode)
         } catch {
             session.removeInput(input)
             session.removeOutput(output)
@@ -36,6 +38,21 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
         session.commitConfiguration()
         await Task.detached { [session] in session.startRunning() }.value
         isReady = session.isRunning
+    }
+
+    private func configure(camera: AVCaptureDevice, focusMode: FollowScriptSettings.VideoFocusMode) throws {
+        let deviceMode: AVCaptureDevice.FocusMode
+        switch focusMode {
+        case .cameraDefault: return
+        case .continuous: deviceMode = .continuousAutoFocus
+        case .locked: deviceMode = .locked
+        }
+        guard camera.isFocusModeSupported(deviceMode) else {
+            throw VideoCaptureError.unsupportedFocusMode(focusMode)
+        }
+        try camera.lockForConfiguration()
+        defer { camera.unlockForConfiguration() }
+        camera.focusMode = deviceMode
     }
 
     private func configure(camera: AVCaptureDevice, framesPerSecond: Int) throws {
@@ -96,12 +113,14 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
 
 enum VideoCaptureError: LocalizedError {
     case permissionDenied, unavailable, notRecording, unsupportedFrameRate(Int)
+    case unsupportedFocusMode(FollowScriptSettings.VideoFocusMode)
     var errorDescription: String? {
         switch self {
         case .permissionDenied: "Camera access is required for video recording."
         case .unavailable: "The camera is unavailable."
         case .notRecording: "No video recording is active."
         case .unsupportedFrameRate(let rate): "The front camera does not support \(rate) fps. Choose another frame rate in Settings."
+        case .unsupportedFocusMode(let mode): "The front camera does not support \(mode.title.lowercased()). Choose another focus mode in Settings."
         }
     }
 }

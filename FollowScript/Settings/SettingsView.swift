@@ -45,10 +45,15 @@ struct SettingsView: View {
                             Text(option.title).tag(option)
                         }
                     }
+                    Picker("Focus", selection: $model.settings.videoFocusMode) {
+                        ForEach(FollowScriptSettings.VideoFocusMode.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
                 } header: {
                     Text("Video recording")
                 } footer: {
-                    Text("Automatic uses the camera's default frame rate. Higher frame rates may use more storage and may be unavailable on some devices.")
+                    Text("Automatic uses the camera's default frame rate. Higher frame rates may use more storage. Focus modes depend on the front camera; an unsupported choice is reported before recording.")
                 }
 
                 Section("Script processing") {

@@ -50,6 +50,7 @@ final class FollowScriptSettingsTests: XCTestCase {
         let settings = try JSONDecoder().decode(FollowScriptSettings.self, from: data)
         XCTAssertEqual(settings.videoPromptPlacement, .automatic)
         XCTAssertEqual(settings.videoFrameRate, .automatic)
+        XCTAssertEqual(settings.videoFocusMode, .cameraDefault)
     }
 
     func testVideoPromptPlacementPersistsAndFollowsCameraEdge() throws {
@@ -74,5 +75,14 @@ final class FollowScriptSettingsTests: XCTestCase {
         }
         XCTAssertEqual(FollowScriptSettings.VideoFrameRate.fps25.framesPerSecond, 25)
         XCTAssertEqual(FollowScriptSettings.VideoFrameRate.fps50.framesPerSecond, 50)
+    }
+
+    func testVideoFocusModePersists() throws {
+        for mode in FollowScriptSettings.VideoFocusMode.allCases {
+            var settings = FollowScriptSettings()
+            settings.videoFocusMode = mode
+            let decoded = try JSONDecoder().decode(FollowScriptSettings.self, from: JSONEncoder().encode(settings))
+            XCTAssertEqual(decoded.videoFocusMode, mode)
+        }
     }
 }

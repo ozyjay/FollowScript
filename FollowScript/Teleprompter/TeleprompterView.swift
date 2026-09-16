@@ -33,6 +33,7 @@ struct TeleprompterView: View {
                 ignoresSquareBracketedText: ignoresSquareBracketedText,
                 removesExtraWhitespace: removesExtraWhitespace,
                 videoFrameRate: settings.wrappedValue.videoFrameRate,
+                videoFocusMode: settings.wrappedValue.videoFocusMode,
                 logsTimestampedTrackingInformation: logsTimestampedTrackingInformation
             )
         )

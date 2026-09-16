@@ -89,6 +89,7 @@ A device run exposed the former duplicate-tap crash, but the corrected lifecycle
 ### Presentation modes on a physical iPhone
 
 Check all three modes, microphone recognition latency during recording, front-camera preview, prompt exclusion from exported video, audio/video sync, repeated takes, low storage, camera denial, background interruption and external microphone route changes. Simulator builds do not establish camera or microphone behaviour. For video frame-rate settings, record a take with Automatic and each supported explicit choice (24, 25, 30, 50 and 60 fps), then inspect the saved MOV's video track on a physical iPhone. Check that an unsupported rate reports an error before recording and that changing the setting for a new presentation applies the new rate.
+For focus settings, check Camera default, Continuous autofocus and Lock focus on a physical iPhone, including a device whose front camera does not support a selected mode. Confirm focus does not change after locking and that an unsupported mode reports an error before recording.
 
 ### Take playback checks
 

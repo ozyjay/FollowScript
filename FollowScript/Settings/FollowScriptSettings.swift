@@ -55,8 +55,24 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         var title: String { framesPerSecond.map { "\($0) fps" } ?? "Automatic" }
     }
 
+    enum VideoFocusMode: String, Codable, CaseIterable, Identifiable, Sendable {
+        case cameraDefault
+        case continuous
+        case locked
+
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .cameraDefault: "Camera default"
+            case .continuous: "Continuous autofocus"
+            case .locked: "Lock focus"
+            }
+        }
+    }
+
     var videoPromptPlacement: VideoPromptPlacement = .automatic
     var videoFrameRate: VideoFrameRate = .automatic
+    var videoFocusMode: VideoFocusMode = .cameraDefault
     var lastPresentationMode: PresentationMode = .teleprompter
     var fontSize: Double = 42
     var lineSpacing: Double = 12
@@ -73,6 +89,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case videoPromptPlacement
         case videoFrameRate
+        case videoFocusMode
         case lastPresentationMode
         case fontSize
         case lineSpacing
@@ -93,6 +110,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         videoPromptPlacement = try container.decodeIfPresent(VideoPromptPlacement.self, forKey: .videoPromptPlacement) ?? .automatic
         videoFrameRate = try container.decodeIfPresent(VideoFrameRate.self, forKey: .videoFrameRate) ?? .automatic
+        videoFocusMode = try container.decodeIfPresent(VideoFocusMode.self, forKey: .videoFocusMode) ?? .cameraDefault
         lastPresentationMode = try container.decodeIfPresent(PresentationMode.self, forKey: .lastPresentationMode) ?? .teleprompter
         fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 42
         lineSpacing = try container.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? 12
