@@ -11,9 +11,10 @@ enum ScriptTextProcessor {
             : source
 
         guard removingExtraWhitespace else { return prepared }
-        return prepared
+        let collapsed = prepared
             .split(whereSeparator: { $0.isWhitespace })
             .joined(separator: " ")
+        return insertingMissingSentenceSpaces(in: collapsed)
     }
 
     private static func removingSquareBracketedText(from source: String) -> String {
@@ -53,5 +54,22 @@ enum ScriptTextProcessor {
             result.append(character)
         }
         if result.last?.isWhitespace != true { result.append(" ") }
+    }
+
+    /// Adds the conventional separator where a sentence-ending period is immediately
+    /// followed by an uppercase letter. Existing whitespace has already been collapsed.
+    /// Requiring an uppercase letter avoids splitting decimals, filenames and abbreviations.
+    private static func insertingMissingSentenceSpaces(in text: String) -> String {
+        var result = ""
+        var previousCharacter: Character?
+
+        for character in text {
+            if previousCharacter == ".", character.isUppercase {
+                result.append(" ")
+            }
+            result.append(character)
+            previousCharacter = character
+        }
+        return result
     }
 }

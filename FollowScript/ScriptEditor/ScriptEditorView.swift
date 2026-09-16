@@ -15,8 +15,7 @@ struct ScriptEditorView: View {
             VStack(spacing: 16) {
                 TextEditor(text: $model.scriptText)
                     .font(.body)
-                    .padding(8)
-                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                    .scrollContentBackground(.hidden)
                     .accessibilityLabel("Script")
 
                 Button {
@@ -32,8 +31,15 @@ struct ScriptEditorView: View {
                 .accessibilityHint("Choose teleprompter, audio or video presentation")
             }
             .padding()
-            .navigationTitle("FollowScript")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Image("AppIconArtwork")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .accessibilityHidden(true)
+                }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button("Library", systemImage: "folder") { presentsLibrary = true }
                         .accessibilityHint("Browse saved presentations and recordings")

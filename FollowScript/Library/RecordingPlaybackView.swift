@@ -212,18 +212,25 @@ struct RecordingPlaybackView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 if model.isVideo, model.errorMessage == nil {
-                    Group {
-                        if let player = model.videoPlayer {
-                            SystemVideoPlayer(player: player)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .background(.black)
-                        } else {
-                            ProgressView("Opening video")
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .background(.black)
+                    ZStack(alignment: .topTrailing) {
+                        Group {
+                            if let player = model.videoPlayer {
+                                SystemVideoPlayer(player: player)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .background(.black)
+                            } else {
+                                ProgressView("Opening video")
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .background(.black)
+                            }
                         }
+                        .ignoresSafeArea()
+
+                        Button("Done") { dismiss() }
+                            .buttonStyle(.bordered)
+                            .tint(.white)
+                            .padding(16)
                     }
-                    .ignoresSafeArea()
                 } else {
                     Group {
                         if let error = model.errorMessage {
@@ -243,12 +250,14 @@ struct RecordingPlaybackView: View {
                 }
             }
             .padding(model.isVideo && model.errorMessage == nil ? 0 : 20)
-            .navigationTitle(model.isVideo ? "Video take" : "Audio take")
+            .navigationTitle("Audio take")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(model.isVideo ? .hidden : .automatic, for: .navigationBar)
+            .toolbar(model.isVideo ? .hidden : .visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                if !model.isVideo {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                    }
                 }
             }
             .task { await model.prepare() }

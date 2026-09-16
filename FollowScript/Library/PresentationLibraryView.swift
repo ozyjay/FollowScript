@@ -131,8 +131,8 @@ struct PresentationLibraryView: View {
                             }
                             .frame(minHeight: 44, alignment: .leading)
                         }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button("Delete", role: .destructive) { projectToDelete = project }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button("Delete", role: .destructive) { library.delete(project) }
                         }
                         .contextMenu {
                             Button("Delete presentation", systemImage: "trash", role: .destructive) {
@@ -185,18 +185,18 @@ struct PresentationLibraryView: View {
                 RecordingPlaybackView(url: item.url,
                                       diagnosticsEnabled: appModel.settings.logsTimestampedTrackingInformation)
             }
-            .confirmationDialog("Delete presentation?", isPresented: Binding(
+            .alert("Delete presentation?", isPresented: Binding(
                 get: { projectToDelete != nil }, set: { if !$0 { projectToDelete = nil } }
-            ), titleVisibility: .visible) {
+            )) {
                 Button("Delete presentation", role: .destructive) {
                     if let projectToDelete { library.delete(projectToDelete) }
                     projectToDelete = nil
                 }
                 Button("Cancel", role: .cancel) { projectToDelete = nil }
             } message: { Text("This removes the script and all recordings in this presentation.") }
-            .confirmationDialog("Delete this recording?", isPresented: Binding(
+            .alert("Delete this recording?", isPresented: Binding(
                 get: { recordingToDelete != nil }, set: { if !$0 { recordingToDelete = nil } }
-            ), titleVisibility: .visible) {
+            )) {
                 Button("Delete recording", role: .destructive) {
                     if let recordingToDelete { library.deleteLegacyRecording(recordingToDelete) }
                     recordingToDelete = nil
@@ -289,6 +289,7 @@ private struct PresentationProjectDetailView: View {
     let diagnosticsEnabled: () -> Bool
     @State private var showsRename = false
     @State private var draftTitle = ""
+    @State private var titleSelection: TextSelection?
     @State private var takeToDelete: PresentationTake?
     @State private var playbackURL: PlaybackItem?
 
@@ -365,6 +366,7 @@ private struct PresentationProjectDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Rename", systemImage: "pencil") {
                     draftTitle = model.project.title
+                    titleSelection = TextSelection(range: draftTitle.startIndex..<draftTitle.endIndex)
                     showsRename = true
                 }
             }
@@ -375,13 +377,13 @@ private struct PresentationProjectDetailView: View {
                                   diagnosticsEnabled: diagnosticsEnabled())
         }
         .alert("Rename presentation", isPresented: $showsRename) {
-            TextField("Name", text: $draftTitle)
+            TextField("Name", text: $draftTitle, selection: $titleSelection)
             Button("Save") { model.rename(to: draftTitle); onChanged() }
             Button("Cancel", role: .cancel) {}
         }
-        .confirmationDialog("Delete this take?", isPresented: Binding(
+        .alert("Delete this take?", isPresented: Binding(
             get: { takeToDelete != nil }, set: { if !$0 { takeToDelete = nil } }
-        ), titleVisibility: .visible) {
+        )) {
             Button("Delete take", role: .destructive) {
                 if let takeToDelete, model.delete(takeToDelete) { onChanged() }
                 takeToDelete = nil

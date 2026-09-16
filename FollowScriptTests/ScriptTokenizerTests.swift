@@ -85,6 +85,19 @@ final class ScriptTokenizerTests: XCTestCase {
         )
     }
 
+    func testPromptingUsesOneSpaceAfterSentencePeriods() {
+        let source = "First sentence.Second sentence.   Third sentence costs $3.50."
+
+        XCTAssertEqual(
+            ScriptTextProcessor.prepare(
+                source,
+                ignoringSquareBracketedText: false,
+                removingExtraWhitespace: true
+            ),
+            "First sentence. Second sentence. Third sentence costs $3.50."
+        )
+    }
+
     func testExtraWhitespaceCanBePreservedForPrompting() {
         let source = "First line.\n\nSecond line."
 
