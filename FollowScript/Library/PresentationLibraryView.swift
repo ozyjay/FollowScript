@@ -343,8 +343,10 @@ private struct PresentationProjectDetailView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Play \(take.mode.title) from \(take.startedAt.formatted())")
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button("Delete", role: .destructive) { takeToDelete = take }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button("Delete", role: .destructive) {
+                            if model.delete(take) { onChanged() }
+                        }
                         if let url {
                             LocalRecordingShareAction(url: url)
                         }

@@ -211,18 +211,24 @@ struct RecordingPlaybackView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 if model.isVideo, model.errorMessage == nil {
-                    playbackControls
-                        .padding(20)
-                    if let player = model.videoPlayer {
-                        VideoPlaybackSurface(player: player)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(.black)
-                            .ignoresSafeArea(edges: .bottom)
-                    } else {
-                        ProgressView("Opening video")
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(.black)
+                    ZStack(alignment: .top) {
+                        if let player = model.videoPlayer {
+                            VideoPlaybackSurface(player: player)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(.black)
+                        } else {
+                            ProgressView("Opening video")
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(.black)
+                        }
+
+                        playbackControls
+                            .padding(20)
+                            .foregroundStyle(.white)
+                            .tint(.white)
+                            .shadow(color: .black.opacity(0.8), radius: 3, y: 1)
                     }
+                    .ignoresSafeArea(edges: .bottom)
                 } else {
                     Group {
                         if let error = model.errorMessage {
