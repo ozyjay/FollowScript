@@ -6,6 +6,9 @@ import SwiftUI
 final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOutputRecordingDelegate {
     let session = AVCaptureSession()
     private let output = AVCaptureMovieFileOutput()
+    private(set) var camera: AVCaptureDevice?
+    private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
+    private var captureRotationObservation: NSKeyValueObservation?
     private var completion: CheckedContinuation<URL, Error>?
     private var rawVideoURL: URL?
     @Published private(set) var isReady = false
@@ -36,8 +39,23 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
             throw error
         }
         session.commitConfiguration()
+        self.camera = camera
+        let coordinator = AVCaptureDevice.RotationCoordinator(device: camera, previewLayer: nil)
+        rotationCoordinator = coordinator
+        captureRotationObservation = coordinator.observe(\.videoRotationAngleForHorizonLevelCapture,
+                                                         options: [.initial, .new]) { [weak self] coordinator, _ in
+            Task { @MainActor [weak self] in
+                self?.applyCaptureRotation(coordinator.videoRotationAngleForHorizonLevelCapture)
+            }
+        }
         await Task.detached { [session] in session.startRunning() }.value
         isReady = session.isRunning
+    }
+
+    private func applyCaptureRotation(_ angle: CGFloat) {
+        guard !output.isRecording else { return }
+        guard let connection = output.connection(with: .video), connection.isVideoRotationAngleSupported(angle) else { return }
+        connection.videoRotationAngle = angle
     }
 
     private func configure(camera: AVCaptureDevice, focusMode: FollowScriptSettings.VideoFocusMode) throws {
@@ -82,6 +100,9 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
 
     func start() throws {
         guard isReady, !output.isRecording else { throw VideoCaptureError.unavailable }
+        if let rotationCoordinator {
+            applyCaptureRotation(rotationCoordinator.videoRotationAngleForHorizonLevelCapture)
+        }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).mov")
         rawVideoURL = url
         output.startRecording(to: url, recordingDelegate: self)
@@ -99,6 +120,9 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
         if output.isRecording { output.stopRecording() }
         session.stopRunning()
         isReady = false
+        captureRotationObservation = nil
+        rotationCoordinator = nil
+        camera = nil
     }
 
     nonisolated func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL,
@@ -126,19 +150,50 @@ enum VideoCaptureError: LocalizedError {
 }
 
 struct CameraPreview: UIViewRepresentable {
-    let session: AVCaptureSession
+    @ObservedObject var capture: VideoCaptureCoordinator
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
         view.previewLayer.videoGravity = .resizeAspectFill
-        view.previewLayer.session = session
+        view.previewLayer.session = capture.session
+        view.updateCamera(capture.camera)
         return view
     }
-    func updateUIView(_ uiView: PreviewView, context: Context) {}
+    func updateUIView(_ uiView: PreviewView, context: Context) {
+        uiView.updateCamera(capture.camera)
+    }
 }
 
 final class PreviewView: UIView {
+    private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
+    private var previewRotationObservation: NSKeyValueObservation?
+    private weak var currentCamera: AVCaptureDevice?
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+
+    func updateCamera(_ camera: AVCaptureDevice?) {
+        guard currentCamera !== camera else {
+            if let rotationCoordinator {
+                applyPreviewRotation(rotationCoordinator.videoRotationAngleForHorizonLevelPreview)
+            }
+            return
+        }
+        previewRotationObservation = nil
+        rotationCoordinator = nil
+        currentCamera = camera
+        guard let camera else { return }
+        let coordinator = AVCaptureDevice.RotationCoordinator(device: camera, previewLayer: previewLayer)
+        rotationCoordinator = coordinator
+        previewRotationObservation = coordinator.observe(\.videoRotationAngleForHorizonLevelPreview,
+                                                         options: [.initial, .new]) { [weak self] coordinator, _ in
+            self?.applyPreviewRotation(coordinator.videoRotationAngleForHorizonLevelPreview)
+        }
+    }
+
+    private func applyPreviewRotation(_ angle: CGFloat) {
+        guard let connection = previewLayer.connection,
+              connection.isVideoRotationAngleSupported(angle) else { return }
+        connection.videoRotationAngle = angle
+    }
 }
 
 /// Combines the camera-only movie with the audio written by the recognition microphone tap.

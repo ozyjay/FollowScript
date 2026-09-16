@@ -45,7 +45,7 @@ struct TeleprompterView: View {
         ZStack(alignment: .top) {
             Color.black.ignoresSafeArea()
             if model.mode == .audiovisual {
-                CameraPreview(session: model.videoCapture.session).ignoresSafeArea()
+                CameraPreview(capture: model.videoCapture).ignoresSafeArea()
                     .accessibilityHidden(true)
             }
             GeometryReader { geometry in
@@ -58,9 +58,7 @@ struct TeleprompterView: View {
                 let viewportWidth = isVideo
                     ? min(geometry.size.width * (isSidePrompt ? 0.38 : 0.76), isSidePrompt ? 360 : 500)
                     : geometry.size.width
-                let viewportHeight = isVideo
-                    ? (isSidePrompt ? geometry.size.height * 0.58 : min(geometry.size.height * 0.44, 360))
-                    : geometry.size.height
+                let viewportHeight = geometry.size.height
 
                 ScrollViewReader { proxy in
                     ScrollView {
