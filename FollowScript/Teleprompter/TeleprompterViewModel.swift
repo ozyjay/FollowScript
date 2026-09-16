@@ -214,6 +214,8 @@ final class TeleprompterViewModel: ObservableObject {
     private let videoFocusMode: FollowScriptSettings.VideoFocusMode
     private var project: PresentationProject?
     private var takeID: UUID?
+    private var audioRecordingStartedAt: Date?
+    private var videoRecordingStartedAt: Date?
     private var recordingStartedAt: Date?
     private var isFinishingTake = false
     @Published private(set) var alignmentState = AlignmentState.initial
@@ -403,8 +405,9 @@ final class TeleprompterViewModel: ObservableObject {
             }
             if project == nil { project = try PresentationProjectStore.createProject(script: script.text) }
             try service.startRecording()
+            audioRecordingStartedAt = Date()
             if mode == .audiovisual {
-                do { try videoCapture.start() }
+                do { videoRecordingStartedAt = try videoCapture.start() }
                 catch { _ = try? service.stopRecording(); throw error }
             }
             takeID = UUID()
@@ -413,6 +416,8 @@ final class TeleprompterViewModel: ObservableObject {
             recordingErrorMessage = nil
             isRecording = true
         } catch {
+            audioRecordingStartedAt = nil
+            videoRecordingStartedAt = nil
             recordingErrorMessage = (error as? LocalizedError)?.errorDescription
                 ?? "FollowScript could not start recording."
         }
@@ -626,7 +631,13 @@ final class TeleprompterViewModel: ObservableObject {
             let mediaExtension: String
             var conversionError: Error?
             if let videoURL {
-                source = try await VideoTakeMuxer.combine(video: videoURL, audio: audioURL)
+                guard let audioRecordingStartedAt, let videoRecordingStartedAt else {
+                    throw VideoCaptureError.unavailable
+                }
+                source = try await VideoTakeMuxer.combine(
+                    video: videoURL, audio: audioURL,
+                    audioStartedAt: audioRecordingStartedAt, videoStartedAt: videoRecordingStartedAt
+                )
                 try? FileManager.default.removeItem(at: videoURL)
                 try? FileManager.default.removeItem(at: audioURL)
                 mediaExtension = "mov"
@@ -667,6 +678,8 @@ final class TeleprompterViewModel: ObservableObject {
         }
         takeID = nil
         recordingStartedAt = nil
+        audioRecordingStartedAt = nil
+        videoRecordingStartedAt = nil
     }
 
     private func consume(_ update: SpeechRecognitionUpdate) {

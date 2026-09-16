@@ -98,14 +98,16 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
         camera.activeVideoMaxFrameDuration = duration
     }
 
-    func start() throws {
+    func start() throws -> Date {
         guard isReady, !output.isRecording else { throw VideoCaptureError.unavailable }
         if let rotationCoordinator {
             applyCaptureRotation(rotationCoordinator.videoRotationAngleForHorizonLevelCapture)
         }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).mov")
         rawVideoURL = url
+        let startedAt = Date()
         output.startRecording(to: url, recordingDelegate: self)
+        return startedAt
     }
 
     func stop() async throws -> URL {
@@ -199,7 +201,7 @@ final class PreviewView: UIView {
 /// Combines the camera-only movie with the audio written by the recognition microphone tap.
 @MainActor
 enum VideoTakeMuxer {
-    static func combine(video: URL, audio: URL) async throws -> URL {
+    static func combine(video: URL, audio: URL, audioStartedAt: Date, videoStartedAt: Date) async throws -> URL {
         let composition = AVMutableComposition()
         let videoAsset = AVURLAsset(url: video)
         let audioAsset = AVURLAsset(url: audio)
@@ -213,8 +215,17 @@ enum VideoTakeMuxer {
         let audioDuration = try await audioAsset.load(.duration)
         try movieTrack.insertTimeRange(CMTimeRange(start: .zero, duration: videoDuration), of: videoTrack, at: .zero)
         movieTrack.preferredTransform = try await videoTrack.load(.preferredTransform)
-        try soundTrack.insertTimeRange(CMTimeRange(start: .zero, duration: CMTimeMinimum(videoDuration, audioDuration)),
-                                       of: audioTrack, at: .zero)
+        // The microphone begins before the camera. Trim that leading audio instead of
+        // treating the start of both independent files as the same instant.
+        let offset = videoStartedAt.timeIntervalSince(audioStartedAt)
+        let audioTrim = CMTime(seconds: max(0, offset), preferredTimescale: 600)
+        let audioPlacement = CMTime(seconds: max(0, -offset), preferredTimescale: 600)
+        let availableAudio = CMTimeSubtract(audioDuration, audioTrim)
+        let availableVideo = CMTimeSubtract(videoDuration, audioPlacement)
+        let soundDuration = CMTimeMinimum(availableAudio, availableVideo)
+        guard soundDuration.isValid, soundDuration > .zero else { throw VideoCaptureError.unavailable }
+        try soundTrack.insertTimeRange(CMTimeRange(start: audioTrim, duration: soundDuration),
+                                       of: audioTrack, at: audioPlacement)
         let destination = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).mov")
         guard let exporter = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
             throw VideoCaptureError.unavailable

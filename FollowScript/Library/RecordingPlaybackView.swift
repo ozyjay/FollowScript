@@ -209,47 +209,39 @@ struct RecordingPlaybackView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                if let error = model.errorMessage {
-                    ContentUnavailableView("Cannot play take", systemImage: "exclamationmark.triangle",
-                                           description: Text(error))
-                } else if model.isVideo {
+            VStack(spacing: 0) {
+                if model.isVideo, model.errorMessage == nil {
+                    playbackControls
+                        .padding(20)
                     if let player = model.videoPlayer {
                         VideoPlaybackSurface(player: player)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .background(.black)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .ignoresSafeArea(edges: .bottom)
                     } else {
                         ProgressView("Opening video")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(.black)
                     }
                 } else {
-                    Image(systemName: "waveform")
-                        .font(.system(size: 80))
-                        .foregroundStyle(.tint)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .accessibilityHidden(true)
-                }
-
-                if model.errorMessage == nil {
-                    HStack(spacing: 16) {
-                        Button(model.isPlaying ? "Pause" : "Play",
-                               systemImage: model.isPlaying ? "pause.fill" : "play.fill") {
-                            model.togglePlayPause()
+                    Group {
+                        if let error = model.errorMessage {
+                            ContentUnavailableView("Cannot play take", systemImage: "exclamationmark.triangle",
+                                                   description: Text(error))
+                        } else {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 80))
+                                .foregroundStyle(.tint)
+                                .accessibilityHidden(true)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .frame(minWidth: 44, minHeight: 44)
-
-                        Slider(value: Binding(
-                            get: { model.currentTime },
-                            set: { model.seek(to: $0) }
-                        ), in: 0...max(model.duration, 0.1))
-                        .disabled(model.duration == 0)
-                        .accessibilityLabel("Playback position")
-                        Text("\(timeLabel(model.currentTime)) / \(timeLabel(model.duration))")
-                            .font(.caption.monospacedDigit())
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if model.errorMessage == nil {
+                        playbackControls
                     }
                 }
             }
-            .padding(20)
+            .padding(model.isVideo && model.errorMessage == nil ? 0 : 20)
             .navigationTitle(model.isVideo ? "Video take" : "Audio take")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -259,6 +251,26 @@ struct RecordingPlaybackView: View {
             }
             .task { await model.prepare() }
             .onDisappear { model.stop() }
+        }
+    }
+
+    private var playbackControls: some View {
+        HStack(spacing: 16) {
+            Button(model.isPlaying ? "Pause" : "Play",
+                   systemImage: model.isPlaying ? "pause.fill" : "play.fill") {
+                model.togglePlayPause()
+            }
+            .buttonStyle(.borderedProminent)
+            .frame(minWidth: 44, minHeight: 44)
+
+            Slider(value: Binding(
+                get: { model.currentTime },
+                set: { model.seek(to: $0) }
+            ), in: 0...max(model.duration, 0.1))
+            .disabled(model.duration == 0)
+            .accessibilityLabel("Playback position")
+            Text("\(timeLabel(model.currentTime)) / \(timeLabel(model.duration))")
+                .font(.caption.monospacedDigit())
         }
     }
 
@@ -274,7 +286,7 @@ private struct VideoPlaybackSurface: UIViewRepresentable {
 
     func makeUIView(context: Context) -> VideoPlaybackView {
         let view = VideoPlaybackView()
-        view.playerLayer.videoGravity = .resizeAspect
+        view.playerLayer.videoGravity = .resizeAspectFill
         view.playerLayer.player = player
         return view
     }
