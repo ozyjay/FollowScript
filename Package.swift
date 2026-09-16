@@ -20,7 +20,7 @@ let package = Package(
             name: "FollowScriptCoreTests",
             dependencies: ["FollowScriptCore"],
             path: "FollowScriptTests",
-            exclude: ["MockSpeechRecognitionServiceTests.swift"],
+            exclude: ["AppModelPresentationTests.swift", "MockSpeechRecognitionServiceTests.swift"],
             sources: [
                 "AlignmentClusterTests.swift",
                 "AlignmentFixtures.swift",

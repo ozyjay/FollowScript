@@ -25,6 +25,10 @@ final class PresentationProjectStoreTests: XCTestCase {
         let renamed = try PresentationProjectStore.rename(project, to: "  New name  ", rootURL: root)
         XCTAssertEqual(renamed.title, "New name")
         XCTAssertEqual(try PresentationProjectStore.projects(rootURL: root).first?.title, "New name")
+        let edited = try PresentationProjectStore.updateScript(renamed, to: "An updated script", rootURL: root)
+        XCTAssertEqual(edited.script, "An updated script")
+        XCTAssertEqual(try PresentationProjectStore.projects(rootURL: root).first?.script, "An updated script")
+        XCTAssertEqual(try PresentationProjectStore.takes(for: project.id, rootURL: root).map(\.id), [take.id])
         try PresentationProjectStore.delete(take, rootURL: root)
         XCTAssertTrue(try PresentationProjectStore.takes(for: project.id, rootURL: root).isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: savedURL.path))
@@ -45,5 +49,19 @@ final class PresentationProjectStoreTests: XCTestCase {
         let take = PresentationTake(id: UUID(), projectID: project.id, mode: .audio,
                                     startedAt: Date(), endedAt: Date(), mediaFilename: "take.m4a", duration: 1)
         XCTAssertEqual(try PresentationProjectStore.mediaURL(for: take, rootURL: root).pathExtension, "m4a")
+    }
+
+    func testCreateProjectUsesProvidedTrimmedTitle() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let project = try PresentationProjectStore.createProject(
+            title: "  Product launch  ",
+            script: "Opening remarks",
+            rootURL: root
+        )
+
+        XCTAssertEqual(project.title, "Product launch")
+        XCTAssertEqual(try PresentationProjectStore.projects(rootURL: root).first?.title, "Product launch")
     }
 }

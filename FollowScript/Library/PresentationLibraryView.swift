@@ -34,27 +34,18 @@ final class PresentationLibraryModel: ObservableObject {
         }
     }
 
-    func saveScript(_ script: String) {
-        PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "savePresentation", phase: "requested")
-        do {
-            let project = try PresentationProjectStore.createProject(script: script)
-            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "savePresentation", phase: "completed", identifier: project.id)
-            refresh()
-        } catch {
-            PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "savePresentation", phase: "failed", error: error)
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    func delete(_ project: PresentationProject) {
+    @discardableResult
+    func delete(_ project: PresentationProject) -> Bool {
         PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "deletePresentation", phase: "requested", identifier: project.id)
         do {
             try PresentationProjectStore.delete(project)
             PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "deletePresentation", phase: "completed", identifier: project.id)
             refresh()
+            return true
         } catch {
             PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "deletePresentation", phase: "failed", identifier: project.id, error: error)
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
@@ -78,9 +69,10 @@ struct PresentationLibraryView: View {
     @State private var searchText = ""
     @State private var projectToDelete: PresentationProject?
     @State private var recordingToDelete: URL?
-    @State private var projectToLoad: PresentationProject?
     @State private var projectToRecord: PresentationProject?
     @State private var legacyPlaybackURL: PlaybackItem?
+    @State private var presentsNewPresentation = false
+    @State private var draftPresentationTitle = ""
     @Environment(\.dismiss) private var dismiss
 
     init(appModel: AppModel, onRecordProject: @escaping (PresentationProject) -> Void) {
@@ -108,31 +100,43 @@ struct PresentationLibraryView: View {
                             searchText.isEmpty ? "No saved presentations" : "No matches",
                             systemImage: searchText.isEmpty ? "folder" : "magnifyingglass",
                             description: Text(searchText.isEmpty
-                                ? "Record audio or video to save a presentation and its takes here."
+                                ? "Create a presentation, add its script, then present or record from it."
                                 : "Try another name or phrase from a script.")
                         )
                     }
                     ForEach(filteredProjects) { project in
                         NavigationLink {
-                            PresentationProjectDetailView(project: project, onUseScript: {
-                                projectToLoad = project
-                            }, onRecord: {
-                                projectToRecord = project
-                            }, onChanged: library.refresh,
+                            PresentationProjectDetailView(project: project, onEdit: { selectedProject in
+                                appModel.selectPresentation(selectedProject)
+                                dismiss()
+                            }, onRecord: { selectedProject in
+                                projectToRecord = selectedProject
+                            }, onChanged: library.refresh, onRenamed: { renamedProject in
+                                appModel.presentationWasRenamed(renamedProject)
+                                library.refresh()
+                            },
                                diagnosticsEnabled: { appModel.settings.logsTimestampedTrackingInformation })
                         } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(project.title).font(.headline)
-                                let takeCount = (try? PresentationProjectStore.takes(for: project.id).count) ?? 0
-                                Text("\(takeCount) take\(takeCount == 1 ? "" : "s")")
-                                    .font(.subheadline).foregroundStyle(.secondary)
-                                Text(project.createdAt, format: .dateTime.day().month().year())
-                                    .font(.caption).foregroundStyle(.secondary)
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(project.title).font(.headline)
+                                    let takeCount = (try? PresentationProjectStore.takes(for: project.id).count) ?? 0
+                                    Text("\(takeCount) take\(takeCount == 1 ? "" : "s")")
+                                        .font(.subheadline).foregroundStyle(.secondary)
+                                    Text(project.createdAt, format: .dateTime.day().month().year())
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if appModel.selectedProject?.id == project.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.tint)
+                                        .accessibilityLabel("Selected presentation")
+                                }
                             }
                             .frame(minHeight: 44, alignment: .leading)
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button("Delete", role: .destructive) { library.delete(project) }
+                            Button("Delete", role: .destructive) { delete(project) }
                         }
                         .contextMenu {
                             Button("Delete presentation", systemImage: "trash", role: .destructive) {
@@ -144,25 +148,7 @@ struct PresentationLibraryView: View {
                 if !library.legacyRecordings.isEmpty {
                     Section("Earlier audio recordings") {
                         ForEach(library.legacyRecordings, id: \.self) { url in
-                            Button {
-                                legacyPlaybackURL = PlaybackItem(url: url)
-                            } label: {
-                                Label(url.deletingPathExtension().lastPathComponent, systemImage: "play.circle")
-                                    .lineLimit(1)
-                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityHint("Opens the audio player")
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button("Delete", role: .destructive) { recordingToDelete = url }
-                                LocalRecordingShareAction(url: url)
-                            }
-                            .contextMenu {
-                                LocalRecordingShareAction(url: url)
-                                Button("Delete recording", systemImage: "trash", role: .destructive) {
-                                    recordingToDelete = url
-                                }
-                            }
+                            legacyRecordingRow(url)
                         }
                     }
                 }
@@ -170,12 +156,12 @@ struct PresentationLibraryView: View {
             .navigationTitle("Library")
             .searchable(text: $searchText, prompt: "Search presentations")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save script", systemImage: "doc.badge.plus") {
-                        library.saveScript(appModel.scriptText)
+                ToolbarItem(placement: .primaryAction) {
+                    Button("New presentation", systemImage: "plus") {
+                        draftPresentationTitle = ""
+                        presentsNewPresentation = true
                     }
-                    .disabled(appModel.scriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityHint("Create a saved presentation without recording a take")
+                    .accessibilityHint("Create and edit a new presentation")
                 }
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
@@ -189,7 +175,7 @@ struct PresentationLibraryView: View {
                 get: { projectToDelete != nil }, set: { if !$0 { projectToDelete = nil } }
             )) {
                 Button("Delete presentation", role: .destructive) {
-                    if let projectToDelete { library.delete(projectToDelete) }
+                    if let projectToDelete { delete(projectToDelete) }
                     projectToDelete = nil
                 }
                 Button("Cancel", role: .cancel) { projectToDelete = nil }
@@ -203,18 +189,6 @@ struct PresentationLibraryView: View {
                 }
                 Button("Cancel", role: .cancel) { recordingToDelete = nil }
             } message: { Text("This recording will be removed from this device.") }
-            .confirmationDialog("Replace the script in the editor?", isPresented: Binding(
-                get: { projectToLoad != nil }, set: { if !$0 { projectToLoad = nil } }
-            )) {
-                Button("Use saved script") {
-                    if let projectToLoad {
-                        appModel.scriptText = projectToLoad.script
-                        appModel.selectedProject = projectToLoad
-                    }
-                    projectToLoad = nil
-                    dismiss()
-                }
-            } message: { Text("Your current editor text will be replaced by this saved script.") }
             .confirmationDialog("Use this presentation for another take?", isPresented: Binding(
                 get: { projectToRecord != nil }, set: { if !$0 { projectToRecord = nil } }
             )) {
@@ -223,11 +197,61 @@ struct PresentationLibraryView: View {
                     projectToRecord = nil
                     dismiss()
                 }
-            } message: { Text("The saved script will replace your current editor text.") }
+            } message: { Text("This presentation will become selected before you choose a mode.") }
+            .alert("New presentation", isPresented: $presentsNewPresentation) {
+                TextField("Presentation name", text: $draftPresentationTitle)
+                Button("Create") {
+                    let title = draftPresentationTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if appModel.createPresentation(
+                        title: title.isEmpty ? "Untitled Presentation" : title
+                    ) != nil {
+                        dismiss()
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Create an empty presentation, then type or import its script.")
+            }
             .alert("Library needs attention", isPresented: Binding(
                 get: { library.errorMessage != nil }, set: { if !$0 { library.errorMessage = nil } }
             )) { Button("OK") { library.errorMessage = nil } }
                 message: { Text(library.errorMessage ?? "The file operation could not be completed.") }
+            .alert("Presentation needs attention", isPresented: Binding(
+                get: { appModel.presentationErrorMessage != nil },
+                set: { if !$0 { appModel.presentationErrorMessage = nil } }
+            )) {
+                Button("OK") { appModel.presentationErrorMessage = nil }
+            } message: {
+                Text(appModel.presentationErrorMessage ?? "The presentation could not be saved.")
+            }
+        }
+    }
+
+    private func delete(_ project: PresentationProject) {
+        if library.delete(project) {
+            appModel.presentationWasDeleted(project)
+        }
+    }
+
+    private func legacyRecordingRow(_ url: URL) -> some View {
+        Button {
+            legacyPlaybackURL = PlaybackItem(url: url)
+        } label: {
+            Label(url.deletingPathExtension().lastPathComponent, systemImage: "play.circle")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens the audio player")
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button("Delete", role: .destructive) { recordingToDelete = url }
+            LocalRecordingShareAction(url: url)
+        }
+        .contextMenu {
+            LocalRecordingShareAction(url: url)
+            Button("Delete recording", systemImage: "trash", role: .destructive) {
+                recordingToDelete = url
+            }
         }
     }
 }
@@ -254,14 +278,17 @@ final class PresentationProjectDetailModel: ObservableObject {
         }
     }
 
-    func rename(to title: String) {
+    @discardableResult
+    func rename(to title: String) -> Bool {
         PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "renamePresentation", phase: "requested", identifier: project.id)
         do {
             project = try PresentationProjectStore.rename(project, to: title)
             PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "renamePresentation", phase: "completed", identifier: project.id)
+            return true
         } catch {
             PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "renamePresentation", phase: "failed", identifier: project.id, error: error)
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
@@ -283,9 +310,10 @@ final class PresentationProjectDetailModel: ObservableObject {
 
 private struct PresentationProjectDetailView: View {
     @StateObject private var model: PresentationProjectDetailModel
-    let onUseScript: () -> Void
-    let onRecord: () -> Void
+    let onEdit: (PresentationProject) -> Void
+    let onRecord: (PresentationProject) -> Void
     let onChanged: () -> Void
+    let onRenamed: (PresentationProject) -> Void
     let diagnosticsEnabled: () -> Bool
     @State private var showsRename = false
     @State private var draftTitle = ""
@@ -293,15 +321,17 @@ private struct PresentationProjectDetailView: View {
     @State private var takeToDelete: PresentationTake?
     @State private var playbackURL: PlaybackItem?
 
-    init(project: PresentationProject, onUseScript: @escaping () -> Void,
-         onRecord: @escaping () -> Void, onChanged: @escaping () -> Void,
+    init(project: PresentationProject, onEdit: @escaping (PresentationProject) -> Void,
+         onRecord: @escaping (PresentationProject) -> Void, onChanged: @escaping () -> Void,
+         onRenamed: @escaping (PresentationProject) -> Void,
          diagnosticsEnabled: @escaping () -> Bool) {
         _model = StateObject(wrappedValue: PresentationProjectDetailModel(
             project: project, diagnosticsEnabled: diagnosticsEnabled
         ))
-        self.onUseScript = onUseScript
+        self.onEdit = onEdit
         self.onRecord = onRecord
         self.onChanged = onChanged
+        self.onRenamed = onRenamed
         self.diagnosticsEnabled = diagnosticsEnabled
     }
 
@@ -311,9 +341,9 @@ private struct PresentationProjectDetailView: View {
                 Text(model.project.script)
                     .lineLimit(5)
                     .foregroundStyle(.secondary)
-                Button("Use this script in editor", systemImage: "text.document") { onUseScript() }
+                Button("Edit presentation", systemImage: "square.and.pencil") { onEdit(model.project) }
                     .frame(minHeight: 44)
-                Button("Record another take", systemImage: "record.circle") { onRecord() }
+                Button("Present or record", systemImage: "play.circle") { onRecord(model.project) }
                     .frame(minHeight: 44)
             }
             Section("Takes") {
@@ -378,7 +408,11 @@ private struct PresentationProjectDetailView: View {
         }
         .alert("Rename presentation", isPresented: $showsRename) {
             TextField("Name", text: $draftTitle, selection: $titleSelection)
-            Button("Save") { model.rename(to: draftTitle); onChanged() }
+            Button("Save") {
+                if model.rename(to: draftTitle) {
+                    onRenamed(model.project)
+                }
+            }
             Button("Cancel", role: .cancel) {}
         }
         .alert("Delete this take?", isPresented: Binding(

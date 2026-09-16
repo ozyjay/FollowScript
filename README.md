@@ -22,8 +22,8 @@ xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -configuration D
 
 ## MVP
 
-- Persistent single-script editor and persistent font, spacing, alignment, highlighting, highlighted-text centring, prompt-flip and display-awake settings
-- Files import for DOCX, ODT, Markdown, plain text, RTF and HTML scripts
+- First-class presentations whose editable scripts and recorded takes stay together, with the last presentation restored on launch
+- Files import for DOCX, ODT, Markdown, plain text, RTF and HTML directly into the selected presentation
 - Brief branded loading screen with the current app version and build number
 - Portrait/landscape teleprompter with a centred active word, visible look-ahead text and a 40% reading zone
 - Speech-driven, thresholded scrolling; no timer-based movement
@@ -50,7 +50,7 @@ Recognition text is normalised and compared with candidate windows using edit si
 
 Apple Speech is isolated behind `SpeechRecognitionService`. The app neither records audio to disk nor sends scripts to a service of its own. Speech behaviour remains subject to Apple framework, language-model and OS availability. See [speech-recognition.md](docs/speech-recognition.md) and [privacy.md](docs/privacy.md).
 
-The editor can replace its script with text imported through the system Files picker. See [script-import.md](docs/script-import.md) for supported formats and conversion limits.
+The editor can replace the selected presentation's script with text imported through the system Files picker. See [script-import.md](docs/script-import.md) for supported formats and conversion limits.
 
 ## Tests
 
@@ -70,7 +70,7 @@ The core suite covers source mapping, normalisation, exact reading, punctuation/
 
 ## Privacy
 
-The current script and settings are stored in `UserDefaults`. Audio buffers are consumed in memory unless the user explicitly records a local take. Completed audio-only takes are saved as AAC M4A, with CAF retained if conversion fails; video takes are local MOV files. There are no analytics, accounts, cloud APIs or application-managed network requests. The app requests microphone and speech-recognition permissions and refuses the legacy recogniser when on-device recognition is unavailable. On iOS 26+, Apple may download a language asset before first use.
+Presentation titles and scripts are stored as local project metadata under the app's Documents directory; the selected presentation identifier and settings are stored in `UserDefaults`. Audio buffers are consumed in memory unless the user explicitly records a local take. Completed audio-only takes are saved as AAC M4A, with CAF retained if conversion fails; video takes are local MOV files. There are no analytics, accounts, cloud APIs or application-managed network requests. The app requests microphone and speech-recognition permissions and refuses the legacy recogniser when on-device recognition is unavailable. On iOS 26+, Apple may download a language asset before first use.
 
 ## Known limitations and roadmap
 

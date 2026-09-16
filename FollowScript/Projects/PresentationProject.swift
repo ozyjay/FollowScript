@@ -46,12 +46,44 @@ enum PresentationProjectStore {
         return root
     }
 
-    static func createProject(script: String, rootURL: URL? = nil) throws -> PresentationProject {
-        let project = PresentationProject(id: UUID(), title: "Presentation \(Date().formatted(date: .abbreviated, time: .shortened))",
-                                          script: script, createdAt: Date())
-        let folder = try projectFolder(project.id, rootURL: rootURL)
-        try JSONEncoder().encode(project).write(to: folder.appendingPathComponent("project.json"), options: .atomic)
+    static func createProject(
+        title: String? = nil,
+        script: String,
+        rootURL: URL? = nil
+    ) throws -> PresentationProject {
+        let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let project = PresentationProject(
+            id: UUID(),
+            title: trimmedTitle.flatMap { $0.isEmpty ? nil : $0 }
+                ?? "Presentation \(Date().formatted(date: .abbreviated, time: .shortened))",
+            script: script,
+            createdAt: Date()
+        )
+        try write(project, rootURL: rootURL)
         return project
+    }
+
+    static func updateScript(
+        _ project: PresentationProject,
+        to script: String,
+        rootURL: URL? = nil
+    ) throws -> PresentationProject {
+        let updated = PresentationProject(
+            id: project.id,
+            title: project.title,
+            script: script,
+            createdAt: project.createdAt
+        )
+        try write(updated, rootURL: rootURL)
+        return updated
+    }
+
+    private static func write(_ project: PresentationProject, rootURL: URL?) throws {
+        let folder = try projectFolder(project.id, rootURL: rootURL)
+        try JSONEncoder().encode(project).write(
+            to: folder.appendingPathComponent("project.json"),
+            options: .atomic
+        )
     }
 
     static func projectFolder(_ id: UUID, rootURL: URL? = nil) throws -> URL {
@@ -124,8 +156,7 @@ extension PresentationProjectStore {
         guard !trimmed.isEmpty else { throw PresentationLibraryError.emptyTitle }
         let updated = PresentationProject(id: project.id, title: trimmed, script: project.script,
                                           createdAt: project.createdAt)
-        try JSONEncoder().encode(updated).write(
-            to: projectFolder(project.id, rootURL: rootURL).appendingPathComponent("project.json"), options: .atomic)
+        try write(updated, rootURL: rootURL)
         return updated
     }
 

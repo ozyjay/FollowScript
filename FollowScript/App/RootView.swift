@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @ObservedObject var model: AppModel
     @State private var hasFinishedLaunching = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -20,6 +21,11 @@ struct RootView: View {
                 hasFinishedLaunching = true
             } catch {
                 // A cancelled launch task belongs to a view that is no longer visible.
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                model.flushPendingChanges()
             }
         }
     }
