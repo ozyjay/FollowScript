@@ -3,15 +3,45 @@ import SwiftUI
 struct RootView: View {
     @ObservedObject var model: AppModel
     @State private var hasFinishedLaunching = false
+    @State private var presentsModePicker = false
+    @State private var presentsTeleprompter = false
+    @State private var selectedMode: PresentationMode = .teleprompter
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
             if hasFinishedLaunching {
-                ScriptEditorView(model: model)
+                PresentationLibraryView(appModel: model, onRecordProject: beginPresentation)
             } else {
                 AppLoadingView()
             }
+        }
+        .confirmationDialog(
+            "Presentation mode",
+            isPresented: $presentsModePicker,
+            titleVisibility: .visible
+        ) {
+            ForEach(PresentationMode.allCases) { mode in
+                Button(mode.title) {
+                    selectedMode = mode
+                    model.settings.lastPresentationMode = mode
+                    presentsTeleprompter = true
+                }
+            }
+        } message: {
+            Text("Choose how to use this presentation. Recording modes save each take with it.")
+        }
+        .fullScreenCover(isPresented: $presentsTeleprompter) {
+            TeleprompterView(
+                scriptText: model.scriptText,
+                mode: selectedMode,
+                project: model.selectedProject,
+                ignoresSquareBracketedText: model.settings.ignoresSquareBracketedText,
+                removesExtraWhitespace: model.settings.removesExtraWhitespace,
+                logsTimestampedTrackingInformation: model.settings.logsTimestampedTrackingInformation,
+                settings: $model.settings,
+                onExit: { presentsTeleprompter = false }
+            )
         }
         .task {
             guard !hasFinishedLaunching else { return }
@@ -28,6 +58,13 @@ struct RootView: View {
                 model.flushPendingChanges()
             }
         }
+    }
+
+    private func beginPresentation(_ project: PresentationProject) {
+        model.selectPresentation(project)
+        model.flushPendingChanges()
+        selectedMode = model.settings.lastPresentationMode
+        presentsModePicker = true
     }
 }
 

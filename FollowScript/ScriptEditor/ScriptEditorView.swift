@@ -2,16 +2,15 @@ import SwiftUI
 
 struct ScriptEditorView: View {
     @ObservedObject var model: AppModel
-    @State private var presentsLibrary = false
-    @State private var recordProjectPendingModePicker = false
     @State private var presentsModePicker = false
+    @State private var presentsTeleprompter = false
     @State private var selectedMode: PresentationMode = .teleprompter
     @State private var presentsFileImporter = false
     @State private var isImporting = false
     @State private var importNotice: ImportNotice?
-    @State private var presentsNewPresentation = false
     @State private var presentsRenamePresentation = false
     @State private var draftPresentationTitle = ""
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -41,12 +40,9 @@ struct ScriptEditorView: View {
                     ContentUnavailableView {
                         Label("No Presentation", systemImage: "rectangle.on.rectangle.slash")
                     } description: {
-                        Text("Create a presentation before adding or importing a script.")
+                        Text("Return to Library and select or create a presentation.")
                     } actions: {
-                        Button("New Presentation") {
-                            draftPresentationTitle = ""
-                            presentsNewPresentation = true
-                        }
+                        Button("Done") { dismiss() }
                         .buttonStyle(.borderedProminent)
                     }
                 }
@@ -55,24 +51,13 @@ struct ScriptEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Image("AppIconArtwork")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 28, height: 28)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .accessibilityHidden(true)
+                    Button("Done") {
+                        model.flushPendingChanges()
+                        dismiss()
+                    }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button("Library", systemImage: "folder") {
-                        model.flushPendingChanges()
-                        presentsLibrary = true
-                    }
-                        .accessibilityHint("Browse saved presentations and recordings")
                     Menu("More options", systemImage: "ellipsis.circle") {
-                        Button("New presentation", systemImage: "plus.rectangle.on.rectangle") {
-                            draftPresentationTitle = ""
-                            presentsNewPresentation = true
-                        }
                         Button("Rename presentation", systemImage: "pencil") {
                             draftPresentationTitle = model.selectedProject?.title ?? ""
                             presentsRenamePresentation = true
@@ -82,10 +67,6 @@ struct ScriptEditorView: View {
                             presentsFileImporter = true
                         }
                         .disabled(isImporting || model.selectedProject == nil)
-                        Divider()
-                        Button("Settings", systemImage: "slider.horizontal.3") {
-                            model.presentsSettings = true
-                        }
                     }
                     if isImporting {
                         ProgressView()
@@ -93,35 +74,18 @@ struct ScriptEditorView: View {
                     }
                 }
             }
-            .sheet(isPresented: $presentsLibrary) {
-                PresentationLibraryView(appModel: model, onRecordProject: { project in
-                    model.selectPresentation(project)
-                    selectedMode = model.settings.lastPresentationMode
-                    recordProjectPendingModePicker = true
-                    presentsLibrary = false
-                })
-            }
-            .onChange(of: presentsLibrary) { _, isPresented in
-                if !isPresented && recordProjectPendingModePicker {
-                    recordProjectPendingModePicker = false
-                    presentsModePicker = true
-                }
-            }
-            .sheet(isPresented: $model.presentsSettings) {
-                SettingsView(model: model)
-            }
             .confirmationDialog("Presentation mode", isPresented: $presentsModePicker, titleVisibility: .visible) {
                 ForEach(PresentationMode.allCases) { mode in
                     Button(mode.title) {
                         selectedMode = mode
                         model.settings.lastPresentationMode = mode
-                        model.presentsTeleprompter = true
+                        presentsTeleprompter = true
                     }
                 }
             } message: {
                 Text("Choose how to use this presentation. Recording modes save each take with it.")
             }
-            .fullScreenCover(isPresented: $model.presentsTeleprompter) {
+            .fullScreenCover(isPresented: $presentsTeleprompter) {
                 TeleprompterView(
                     scriptText: model.scriptText,
                     mode: selectedMode,
@@ -130,7 +94,7 @@ struct ScriptEditorView: View {
                     removesExtraWhitespace: model.settings.removesExtraWhitespace,
                     logsTimestampedTrackingInformation: model.settings.logsTimestampedTrackingInformation,
                     settings: $model.settings,
-                    onExit: { model.presentsTeleprompter = false }
+                    onExit: { presentsTeleprompter = false }
                 )
             }
             .fileImporter(
@@ -161,16 +125,6 @@ struct ScriptEditorView: View {
                         dismissButton: .default(Text("OK"))
                     )
                 }
-            }
-            .alert("New presentation", isPresented: $presentsNewPresentation) {
-                TextField("Presentation name", text: $draftPresentationTitle)
-                Button("Create") {
-                    let title = draftPresentationTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                    _ = model.createPresentation(title: title.isEmpty ? "Untitled Presentation" : title)
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Create an empty presentation, then type or import its script.")
             }
             .alert("Rename presentation", isPresented: $presentsRenamePresentation) {
                 TextField("Presentation name", text: $draftPresentationTitle)

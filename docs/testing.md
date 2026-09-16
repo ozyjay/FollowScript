@@ -82,7 +82,7 @@ Recorded observation: on 13 September 2026, the user confirmed that physical-iPh
 - [ ] Large prompt sizes, VoiceOver controls and contrast
 - [ ] Keep-display-awake behaviour while prompting, backgrounding and exiting
 - [ ] Import representative DOCX, ODT, Markdown, RTF and Files-provider documents
-- [ ] Create, rename and switch presentations; confirm edits and imports remain with the selected presentation after relaunch
+- [ ] Confirm Library is the first interactive screen after launch; create, rename and switch presentations, then verify edits and imports remain with the selected presentation after relaunch
 - [ ] Start all three modes and confirm each uses the selected presentation's current script and saves takes under it
 - [ ] Battery and thermal behaviour for a realistic presentation
 

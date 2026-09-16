@@ -25,7 +25,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    @Published var presentsTeleprompter = false
     @Published var presentsSettings = false
 
     private let defaults: UserDefaults

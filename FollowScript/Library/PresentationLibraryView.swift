@@ -69,11 +69,10 @@ struct PresentationLibraryView: View {
     @State private var searchText = ""
     @State private var projectToDelete: PresentationProject?
     @State private var recordingToDelete: URL?
-    @State private var projectToRecord: PresentationProject?
     @State private var legacyPlaybackURL: PlaybackItem?
     @State private var presentsNewPresentation = false
+    @State private var presentsNewPresentationEditor = false
     @State private var draftPresentationTitle = ""
-    @Environment(\.dismiss) private var dismiss
 
     init(appModel: AppModel, onRecordProject: @escaping (PresentationProject) -> Void) {
         self.appModel = appModel
@@ -106,16 +105,18 @@ struct PresentationLibraryView: View {
                     }
                     ForEach(filteredProjects) { project in
                         NavigationLink {
-                            PresentationProjectDetailView(project: project, onEdit: { selectedProject in
-                                appModel.selectPresentation(selectedProject)
-                                dismiss()
-                            }, onRecord: { selectedProject in
-                                projectToRecord = selectedProject
-                            }, onChanged: library.refresh, onRenamed: { renamedProject in
-                                appModel.presentationWasRenamed(renamedProject)
-                                library.refresh()
-                            },
-                               diagnosticsEnabled: { appModel.settings.logsTimestampedTrackingInformation })
+                            PresentationProjectDetailView(
+                                project: project,
+                                appModel: appModel,
+                                onRecord: onRecordProject,
+                                onChanged: library.refresh,
+                                onRenamed: { renamedProject in
+                                    appModel.presentationWasRenamed(renamedProject)
+                                    library.refresh()
+                                }, diagnosticsEnabled: {
+                                    appModel.settings.logsTimestampedTrackingInformation
+                                }
+                            )
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -156,20 +157,36 @@ struct PresentationLibraryView: View {
             .navigationTitle("Library")
             .searchable(text: $searchText, prompt: "Search presentations")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem(placement: .topBarLeading) {
+                    Image("AppIconArtwork")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .accessibilityHidden(true)
+                }
+                ToolbarItemGroup(placement: .topBarTrailing) {
                     Button("New presentation", systemImage: "plus") {
                         draftPresentationTitle = ""
                         presentsNewPresentation = true
                     }
                     .accessibilityHint("Create and edit a new presentation")
+                    Button("Settings", systemImage: "slider.horizontal.3") {
+                        appModel.presentsSettings = true
+                    }
                 }
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
             .onAppear(perform: library.refresh)
             .refreshable { library.refresh() }
             .sheet(item: $legacyPlaybackURL) { item in
                 RecordingPlaybackView(url: item.url,
                                       diagnosticsEnabled: appModel.settings.logsTimestampedTrackingInformation)
+            }
+            .sheet(isPresented: $presentsNewPresentationEditor, onDismiss: library.refresh) {
+                ScriptEditorView(model: appModel)
+            }
+            .sheet(isPresented: $appModel.presentsSettings) {
+                SettingsView(model: appModel)
             }
             .alert("Delete presentation?", isPresented: Binding(
                 get: { projectToDelete != nil }, set: { if !$0 { projectToDelete = nil } }
@@ -189,15 +206,6 @@ struct PresentationLibraryView: View {
                 }
                 Button("Cancel", role: .cancel) { recordingToDelete = nil }
             } message: { Text("This recording will be removed from this device.") }
-            .confirmationDialog("Use this presentation for another take?", isPresented: Binding(
-                get: { projectToRecord != nil }, set: { if !$0 { projectToRecord = nil } }
-            )) {
-                Button("Choose recording mode") {
-                    if let projectToRecord { onRecordProject(projectToRecord) }
-                    projectToRecord = nil
-                    dismiss()
-                }
-            } message: { Text("This presentation will become selected before you choose a mode.") }
             .alert("New presentation", isPresented: $presentsNewPresentation) {
                 TextField("Presentation name", text: $draftPresentationTitle)
                 Button("Create") {
@@ -205,7 +213,10 @@ struct PresentationLibraryView: View {
                     if appModel.createPresentation(
                         title: title.isEmpty ? "Untitled Presentation" : title
                     ) != nil {
-                        dismiss()
+                        Task { @MainActor in
+                            await Task.yield()
+                            presentsNewPresentationEditor = true
+                        }
                     }
                 }
                 Button("Cancel", role: .cancel) {}
@@ -230,6 +241,7 @@ struct PresentationLibraryView: View {
     private func delete(_ project: PresentationProject) {
         if library.delete(project) {
             appModel.presentationWasDeleted(project)
+            library.refresh()
         }
     }
 
@@ -270,6 +282,9 @@ final class PresentationProjectDetailModel: ObservableObject {
 
     func refresh() {
         do {
+            if let refreshedProject = try PresentationProjectStore.projects().first(where: { $0.id == project.id }) {
+                project = refreshedProject
+            }
             takes = try PresentationProjectStore.takes(for: project.id)
             PresentationManagementDiagnostics.event(enabled: diagnosticsEnabled(), operation: "takesRefresh", phase: "completed", identifier: project.id)
         } catch {
@@ -310,7 +325,7 @@ final class PresentationProjectDetailModel: ObservableObject {
 
 private struct PresentationProjectDetailView: View {
     @StateObject private var model: PresentationProjectDetailModel
-    let onEdit: (PresentationProject) -> Void
+    @ObservedObject var appModel: AppModel
     let onRecord: (PresentationProject) -> Void
     let onChanged: () -> Void
     let onRenamed: (PresentationProject) -> Void
@@ -320,15 +335,16 @@ private struct PresentationProjectDetailView: View {
     @State private var titleSelection: TextSelection?
     @State private var takeToDelete: PresentationTake?
     @State private var playbackURL: PlaybackItem?
+    @State private var presentsEditor = false
 
-    init(project: PresentationProject, onEdit: @escaping (PresentationProject) -> Void,
+    init(project: PresentationProject, appModel: AppModel,
          onRecord: @escaping (PresentationProject) -> Void, onChanged: @escaping () -> Void,
          onRenamed: @escaping (PresentationProject) -> Void,
          diagnosticsEnabled: @escaping () -> Bool) {
         _model = StateObject(wrappedValue: PresentationProjectDetailModel(
             project: project, diagnosticsEnabled: diagnosticsEnabled
         ))
-        self.onEdit = onEdit
+        self.appModel = appModel
         self.onRecord = onRecord
         self.onChanged = onChanged
         self.onRenamed = onRenamed
@@ -341,10 +357,14 @@ private struct PresentationProjectDetailView: View {
                 Text(model.project.script)
                     .lineLimit(5)
                     .foregroundStyle(.secondary)
-                Button("Edit presentation", systemImage: "square.and.pencil") { onEdit(model.project) }
+                Button("Edit presentation", systemImage: "square.and.pencil") {
+                    appModel.selectPresentation(model.project)
+                    presentsEditor = true
+                }
                     .frame(minHeight: 44)
                 Button("Present or record", systemImage: "play.circle") { onRecord(model.project) }
                     .frame(minHeight: 44)
+                    .disabled(model.project.script.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             Section("Takes") {
                 if model.takes.isEmpty {
@@ -405,6 +425,12 @@ private struct PresentationProjectDetailView: View {
         .sheet(item: $playbackURL) { item in
             RecordingPlaybackView(url: item.url, recordingID: item.recordingID,
                                   diagnosticsEnabled: diagnosticsEnabled())
+        }
+        .sheet(isPresented: $presentsEditor, onDismiss: {
+            model.refresh()
+            onChanged()
+        }) {
+            ScriptEditorView(model: appModel)
         }
         .alert("Rename presentation", isPresented: $showsRename) {
             TextField("Name", text: $draftTitle, selection: $titleSelection)

@@ -22,7 +22,7 @@ xcodebuild -project FollowScript.xcodeproj -scheme FollowScript -configuration D
 
 ## MVP
 
-- First-class presentations whose editable scripts and recorded takes stay together, with the last presentation restored on launch
+- A presentation Library as the main screen, with each editable script and its recorded takes kept together
 - Files import for DOCX, ODT, Markdown, plain text, RTF and HTML directly into the selected presentation
 - Brief branded loading screen with the current app version and build number
 - Portrait/landscape teleprompter with a centred active word, visible look-ahead text and a 40% reading zone
