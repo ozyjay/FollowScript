@@ -347,9 +347,9 @@ private struct PresentationProjectDetailView: View {
                         Button("Delete", role: .destructive) {
                             if model.delete(take) { onChanged() }
                         }
-                        if let url {
-                            LocalRecordingShareAction(url: url)
-                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                        if let url { LocalRecordingShareAction(url: url) }
                     }
                     .contextMenu {
                         if let url { LocalRecordingShareAction(url: url) }
