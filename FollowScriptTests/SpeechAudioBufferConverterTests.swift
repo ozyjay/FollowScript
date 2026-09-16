@@ -3,6 +3,21 @@ import XCTest
 @testable import FollowScript
 
 final class SpeechAudioBufferConverterTests: XCTestCase {
+    func testMicrophoneMeasurementSeparatesRMSLevelFromClippingPeak() throws {
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1))
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 100))
+        buffer.frameLength = 100
+        let samples = try XCTUnwrap(buffer.floatChannelData?[0])
+        for index in 0..<100 { samples[index] = 0.05 }
+        samples[50] = 0.99
+
+        let measurement = MicrophoneCaptureMonitor.measurement(in: buffer)
+
+        XCTAssertLessThan(measurement.level, 0.88)
+        XCTAssertEqual(measurement.peak, 0.99, accuracy: 0.001)
+        XCTAssertTrue(measurement.isClipping)
+    }
+
     func testConvertsMicrophoneFloatPCMToSpeechInt16PCM() throws {
         guard let inputFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,

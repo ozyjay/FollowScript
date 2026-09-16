@@ -44,8 +44,8 @@ final class MockSpeechRecognitionService: SpeechRecognitionService {
         return recordingURL
     }
 
-    func sendAudioLevel(_ level: Double) {
-        eventContinuation?.yield(.level(level))
+    func sendAudioLevel(_ level: Double, peak: Double? = nil) {
+        eventContinuation?.yield(.level(.init(level: level, peak: peak ?? level)))
     }
 
     func sendAudioInput(name: String, isExternal: Bool) {

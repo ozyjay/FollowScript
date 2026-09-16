@@ -182,6 +182,7 @@ enum MicrophoneCheckPhase: Equatable {
 
 struct MicrophoneCheckResult: Equatable {
     let microphoneLevelOK: Bool
+    let clippingDetected: Bool
     let recognitionOK: Bool
     let alignmentOK: Bool
     let guidance: String
@@ -212,6 +213,7 @@ final class TeleprompterViewModel: ObservableObject {
     let videoCapture = VideoCaptureCoordinator()
     private let videoFrameRate: FollowScriptSettings.VideoFrameRate
     private let videoFocusMode: FollowScriptSettings.VideoFocusMode
+    private let enhancesRecordedVoice: Bool
     private var project: PresentationProject?
     private var takeID: UUID?
     private var audioRecordingStartedAt: Date?
@@ -229,6 +231,8 @@ final class TeleprompterViewModel: ObservableObject {
     @Published private(set) var scrollTarget: Int?
     @Published private(set) var automaticFollowingSuspended = false
     @Published private(set) var audioLevel = 0.0
+    @Published private(set) var audioPeak = 0.0
+    @Published private(set) var audioIsClipping = false
     @Published private(set) var audioInput: AudioInputDescriptor?
     @Published private(set) var audioInputWarning: String?
     @Published private(set) var isRecording = false
@@ -259,6 +263,7 @@ final class TeleprompterViewModel: ObservableObject {
     private var microphoneCheckTask: Task<Void, Never>?
     private var microphoneCheckLevels: [Double] = []
     private var microphoneCheckPeak = 0.0
+    private var microphoneCheckClipped = false
     private var microphoneCheckInitialText = ""
     private var microphoneCheckSawAlignment = false
     private let trackingLatency: TrackingLatencyInstrument
@@ -272,6 +277,7 @@ final class TeleprompterViewModel: ObservableObject {
         removesExtraWhitespace: Bool = true,
         videoFrameRate: FollowScriptSettings.VideoFrameRate = .automatic,
         videoFocusMode: FollowScriptSettings.VideoFocusMode = .cameraDefault,
+        enhancesRecordedVoice: Bool = false,
         logsTimestampedTrackingInformation: Bool = false,
         service: (any SpeechRecognitionService)? = nil,
         engine: ScriptAlignmentEngine = ScriptAlignmentEngine(),
@@ -294,6 +300,7 @@ final class TeleprompterViewModel: ObservableObject {
         self.logsTimestampedTrackingInformation = logsTimestampedTrackingInformation
         self.videoFrameRate = videoFrameRate
         self.videoFocusMode = videoFocusMode
+        self.enhancesRecordedVoice = enhancesRecordedVoice
         trackingLatency = TrackingLatencyInstrument(isEnabled: logsTimestampedTrackingInformation)
     }
 
@@ -440,6 +447,7 @@ final class TeleprompterViewModel: ObservableObject {
         microphoneCheckTask?.cancel()
         microphoneCheckLevels = []
         microphoneCheckPeak = 0
+        microphoneCheckClipped = false
         microphoneCheckInitialText = recognisedText
         microphoneCheckSawAlignment = false
         microphoneCheckResult = nil
@@ -473,7 +481,9 @@ final class TeleprompterViewModel: ObservableObject {
         let recognitionOK = recognisedText != microphoneCheckInitialText && !recognisedText.isEmpty
         let alignmentOK = microphoneCheckSawAlignment
         let guidance: String
-        if !microphoneOK {
+        if microphoneCheckClipped {
+            guidance = "The microphone clipped. Reduce its gain or move it slightly farther away."
+        } else if !microphoneOK {
             guidance = "Move closer to the microphone or check the selected input."
         } else if !recognitionOK {
             guidance = "Audio is arriving, but no words were recognised. Reduce background noise and try again."
@@ -484,6 +494,7 @@ final class TeleprompterViewModel: ObservableObject {
         }
         microphoneCheckResult = .init(
             microphoneLevelOK: microphoneOK,
+            clippingDetected: microphoneCheckClipped,
             recognitionOK: recognitionOK,
             alignmentOK: alignmentOK,
             guidance: guidance
@@ -583,11 +594,13 @@ final class TeleprompterViewModel: ObservableObject {
             for await event in service.audioInputEvents() {
                 guard !Task.isCancelled else { break }
                 switch event {
-                case .level(let level):
+                case .level(let measurement):
                     guard let self else { break }
-                    self.audioLevel = level
-                    self.consumeMicrophoneLevelForCheck(level)
-                    self.updateRecognitionActivity(for: level)
+                    self.audioLevel = measurement.level
+                    self.audioPeak = measurement.peak
+                    self.audioIsClipping = measurement.isClipping
+                    self.consumeMicrophoneMeasurementForCheck(measurement)
+                    self.updateRecognitionActivity(for: measurement.level)
                 case .inputChanged(let input):
                     guard let self else { break }
                     let lostExternalInput = self.audioInput?.isExternal == true && !input.isExternal
@@ -643,7 +656,10 @@ final class TeleprompterViewModel: ObservableObject {
                 mediaExtension = "mov"
             } else {
                 do {
-                    source = try await AudioTakeExporter.exportAAC(from: audioURL)
+                    source = try await AudioTakeExporter.exportAAC(
+                        from: audioURL,
+                        enhancingVoice: enhancesRecordedVoice
+                    )
                     exportedAudioURL = source
                     mediaExtension = "m4a"
                 } catch {
@@ -872,11 +888,13 @@ final class TeleprompterViewModel: ObservableObject {
         return String(current.dropFirst(previous.count)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func consumeMicrophoneLevelForCheck(_ level: Double) {
+    private func consumeMicrophoneMeasurementForCheck(_ measurement: AudioLevelMeasurement) {
+        let level = measurement.level
         if microphoneCheckPhase == .measuringRoom {
             microphoneCheckLevels.append(level)
         } else if microphoneCheckPhase == .reading {
             microphoneCheckPeak = max(microphoneCheckPeak, level)
+            microphoneCheckClipped = microphoneCheckClipped || measurement.isClipping
         }
     }
 

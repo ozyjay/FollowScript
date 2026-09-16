@@ -40,6 +40,15 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle("Enhance recorded voice", isOn: $model.settings.enhancesRecordedVoice)
+                        .accessibilityHint("Applies a high-pass filter and gentle compression after recording")
+                } header: {
+                    Text("Audio recording")
+                } footer: {
+                    Text("Optional. The microphone and speech recogniser remain unprocessed while recording; enhancement is applied only when an audio take is saved.")
+                }
+
+                Section {
                     Picker("Frame rate", selection: $model.settings.videoFrameRate) {
                         ForEach(FollowScriptSettings.VideoFrameRate.allCases) { option in
                             Text(option.title).tag(option)

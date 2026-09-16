@@ -48,4 +48,26 @@ final class AudioTakeExporterTests: XCTestCase {
             XCTAssertTrue(error is AudioTakeExportError)
         }
     }
+
+    func testVoiceEnhancementExportsAACWithoutModifyingSource() async throws {
+        let source = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).caf")
+        defer { try? FileManager.default.removeItem(at: source) }
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1))
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 44_100))
+        buffer.frameLength = 44_100
+        let samples = try XCTUnwrap(buffer.floatChannelData?[0])
+        for index in 0..<44_100 {
+            samples[index] = sin(Float(index) * 2 * .pi * 180 / 44_100) * 0.12
+        }
+        let file = try AVAudioFile(forWriting: source, settings: format.settings)
+        try file.write(from: buffer)
+        let sourceSize = try source.resourceValues(forKeys: [.fileSizeKey]).fileSize
+
+        let exported = try await AudioTakeExporter.exportAAC(from: source, enhancingVoice: true)
+        defer { try? FileManager.default.removeItem(at: exported) }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertEqual(try source.resourceValues(forKeys: [.fileSizeKey]).fileSize, sourceSize)
+        XCTAssertGreaterThan(try exported.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0, 0)
+    }
 }

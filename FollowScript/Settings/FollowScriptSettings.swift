@@ -73,6 +73,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
     var videoPromptPlacement: VideoPromptPlacement = .automatic
     var videoFrameRate: VideoFrameRate = .automatic
     var videoFocusMode: VideoFocusMode = .cameraDefault
+    var enhancesRecordedVoice = false
     var lastPresentationMode: PresentationMode = .teleprompter
     var fontSize: Double = 42
     var lineSpacing: Double = 12
@@ -90,6 +91,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         case videoPromptPlacement
         case videoFrameRate
         case videoFocusMode
+        case enhancesRecordedVoice
         case lastPresentationMode
         case fontSize
         case lineSpacing
@@ -111,6 +113,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         videoPromptPlacement = try container.decodeIfPresent(VideoPromptPlacement.self, forKey: .videoPromptPlacement) ?? .automatic
         videoFrameRate = try container.decodeIfPresent(VideoFrameRate.self, forKey: .videoFrameRate) ?? .automatic
         videoFocusMode = try container.decodeIfPresent(VideoFocusMode.self, forKey: .videoFocusMode) ?? .cameraDefault
+        enhancesRecordedVoice = try container.decodeIfPresent(Bool.self, forKey: .enhancesRecordedVoice) ?? false
         lastPresentationMode = try container.decodeIfPresent(PresentationMode.self, forKey: .lastPresentationMode) ?? .teleprompter
         fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 42
         lineSpacing = try container.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? 12

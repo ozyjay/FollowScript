@@ -44,8 +44,15 @@ struct MicrophoneGainState: Equatable, Sendable {
     let value: Double
 }
 
+struct AudioLevelMeasurement: Equatable, Sendable {
+    let level: Double
+    let peak: Double
+
+    var isClipping: Bool { peak >= 0.98 }
+}
+
 enum AudioInputEvent: Equatable, Sendable {
-    case level(Double)
+    case level(AudioLevelMeasurement)
     case inputChanged(AudioInputDescriptor)
     case gainChanged(MicrophoneGainState)
     case recordingFailed(String)

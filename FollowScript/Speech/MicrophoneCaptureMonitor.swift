@@ -83,7 +83,7 @@ final class MicrophoneCaptureMonitor: @unchecked Sendable {
             return false
         }
 
-        let level = shouldEmit ? Self.normalisedLevel(in: buffer) : nil
+        let measurement = shouldEmit ? Self.measurement(in: buffer) : nil
         lock.withLock {
             if let audioFile {
                 do {
@@ -95,29 +95,40 @@ final class MicrophoneCaptureMonitor: @unchecked Sendable {
                     }
                 }
             }
-            if let level {
+            if let measurement {
                 for continuation in eventContinuations.values {
-                    continuation.yield(.level(level))
+                    continuation.yield(.level(measurement))
                 }
             }
         }
     }
 
     static func normalisedLevel(in buffer: AVAudioPCMBuffer) -> Double {
-        guard let channels = buffer.floatChannelData, buffer.frameLength > 0 else { return 0 }
+        measurement(in: buffer).level
+    }
+
+    static func measurement(in buffer: AVAudioPCMBuffer) -> AudioLevelMeasurement {
+        guard let channels = buffer.floatChannelData, buffer.frameLength > 0 else {
+            return AudioLevelMeasurement(level: 0, peak: 0)
+        }
         let frameCount = Int(buffer.frameLength)
         var sumOfSquares = 0.0
+        var peak = 0.0
         for channelIndex in 0..<Int(buffer.format.channelCount) {
             let channel = channels[channelIndex]
             for frame in 0..<frameCount {
                 let sample = Double(channel[frame])
                 sumOfSquares += sample * sample
+                peak = max(peak, abs(sample))
             }
         }
         let sampleCount = Double(frameCount * Int(buffer.format.channelCount))
         let rms = sqrt(sumOfSquares / sampleCount)
         let decibels = 20 * log10(max(rms, 0.000_001))
-        return min(max((decibels + 60) / 48, 0), 1)
+        return AudioLevelMeasurement(
+            level: min(max((decibels + 60) / 48, 0), 1),
+            peak: min(peak, 1)
+        )
     }
 
 }

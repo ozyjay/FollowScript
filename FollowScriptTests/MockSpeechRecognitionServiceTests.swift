@@ -176,6 +176,31 @@ final class MockSpeechRecognitionServiceTests: XCTestCase {
         XCTAssertEqual(MicrophoneLevelQuality(level: 0.95), .loud)
     }
 
+    func testMicrophoneCheckReportsClipping() async throws {
+        let service = MockSpeechRecognitionService()
+        let model = TeleprompterViewModel(
+            scriptText: "Rare cobalt telescope marks this place.",
+            service: service,
+            microphoneCheckRoomDuration: .milliseconds(10),
+            microphoneCheckReadingDuration: .seconds(1)
+        )
+        model.start()
+        try await Task.sleep(for: .milliseconds(30))
+        model.beginMicrophoneCheck()
+        service.sendAudioLevel(0.04)
+        try await Task.sleep(for: .milliseconds(20))
+        service.sendAudioLevel(0.9, peak: 0.995)
+        try await Task.sleep(for: .milliseconds(20))
+        model.finishMicrophoneCheck()
+
+        XCTAssertEqual(model.microphoneCheckResult?.clippingDetected, true)
+        XCTAssertEqual(
+            model.microphoneCheckResult?.guidance,
+            "The microphone clipped. Reduce its gain or move it slightly farther away."
+        )
+        model.stop()
+    }
+
     func testSupportedMicrophoneGainCanBeChanged() async throws {
         let service = MockSpeechRecognitionService()
         let model = TeleprompterViewModel(scriptText: "A short script.", service: service)

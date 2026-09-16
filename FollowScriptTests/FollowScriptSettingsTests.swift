@@ -3,6 +3,17 @@ import UIKit
 @testable import FollowScript
 
 final class FollowScriptSettingsTests: XCTestCase {
+    func testVoiceEnhancementDefaultsOffAndRoundTrips() throws {
+        var settings = FollowScriptSettings()
+        XCTAssertFalse(settings.enhancesRecordedVoice)
+        settings.enhancesRecordedVoice = true
+        let decoded = try JSONDecoder().decode(
+            FollowScriptSettings.self,
+            from: JSONEncoder().encode(settings)
+        )
+        XCTAssertTrue(decoded.enhancesRecordedVoice)
+    }
+
     func testDecodingStoredSettingsWithoutMirrorPreferenceUsesNormalView() throws {
         let storedSettings = Data(
             #"{"fontSize":48,"lineSpacing":10,"textAlignment":"centre","highlightsActivePhrase":false}"#.utf8
@@ -51,6 +62,7 @@ final class FollowScriptSettingsTests: XCTestCase {
         XCTAssertEqual(settings.videoPromptPlacement, .automatic)
         XCTAssertEqual(settings.videoFrameRate, .automatic)
         XCTAssertEqual(settings.videoFocusMode, .cameraDefault)
+        XCTAssertFalse(settings.enhancesRecordedVoice)
     }
 
     func testVideoPromptPlacementPersistsAndFollowsCameraEdge() throws {

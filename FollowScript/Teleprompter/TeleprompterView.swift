@@ -34,6 +34,7 @@ struct TeleprompterView: View {
                 removesExtraWhitespace: removesExtraWhitespace,
                 videoFrameRate: settings.wrappedValue.videoFrameRate,
                 videoFocusMode: settings.wrappedValue.videoFocusMode,
+                enhancesRecordedVoice: settings.wrappedValue.enhancesRecordedVoice,
                 logsTimestampedTrackingInformation: logsTimestampedTrackingInformation
             )
         )
@@ -305,6 +306,7 @@ struct TeleprompterView: View {
             MicrophoneLevelView(
                 level: model.audioLevel,
                 quality: model.microphoneLevelQuality,
+                isClipping: model.audioIsClipping,
                 isListening: model.isListening,
                 input: model.audioInput
             )
@@ -565,6 +567,10 @@ private struct MicrophoneCheckView: View {
     private var statusRows: some View {
         VStack(alignment: .leading, spacing: 10) {
             checkRow("Microphone", passed: model.microphoneCheckResult?.microphoneLevelOK)
+            checkRow(
+                "No clipping",
+                passed: model.microphoneCheckResult.map { !$0.clippingDetected }
+            )
             checkRow("Speech recognition", passed: model.microphoneCheckResult?.recognitionOK)
             checkRow("Script following", passed: model.microphoneCheckResult?.alignmentOK)
         }
@@ -579,11 +585,13 @@ private struct MicrophoneCheckView: View {
 private struct MicrophoneLevelView: View {
     let level: Double
     let quality: MicrophoneLevelQuality
+    let isClipping: Bool
     let isListening: Bool
     let input: AudioInputDescriptor?
 
     private var colour: Color {
         guard isListening else { return .secondary }
+        if isClipping { return .red }
         switch quality {
         case .quiet: return .orange
         case .good: return .green
@@ -598,7 +606,7 @@ private struct MicrophoneLevelView: View {
                 ProgressView(value: isListening ? level : 0)
                     .tint(colour)
                     .frame(maxWidth: 180)
-                Text(isListening ? quality.rawValue : "Paused")
+                Text(isListening ? (isClipping ? "Clipping" : quality.rawValue) : "Paused")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(colour)
                     .frame(width: 64, alignment: .leading)
@@ -613,7 +621,7 @@ private struct MicrophoneLevelView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Microphone level")
         .accessibilityValue(
-            [isListening ? quality.rawValue : "Paused", input?.name]
+            [isListening ? (isClipping ? "Clipping" : quality.rawValue) : "Paused", input?.name]
                 .compactMap { $0 }
                 .joined(separator: ", ")
         )
