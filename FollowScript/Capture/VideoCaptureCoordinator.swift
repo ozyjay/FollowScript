@@ -10,21 +10,57 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
     private var rawVideoURL: URL?
     @Published private(set) var isReady = false
 
-    func prepare() async throws {
+    func prepare(frameRate: FollowScriptSettings.VideoFrameRate) async throws {
+        guard !isReady else { return }
         guard await AVCaptureDevice.requestAccess(for: .video) else { throw VideoCaptureError.permissionDenied }
         guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
               let input = try? AVCaptureDeviceInput(device: camera) else { throw VideoCaptureError.unavailable }
         session.beginConfiguration()
-        session.sessionPreset = .high
+        session.sessionPreset = frameRate.framesPerSecond == nil ? .high : .inputPriority
         guard session.canAddInput(input), session.canAddOutput(output) else {
             session.commitConfiguration()
             throw VideoCaptureError.unavailable
         }
         session.addInput(input)
         session.addOutput(output)
+        do {
+            if let framesPerSecond = frameRate.framesPerSecond {
+                try configure(camera: camera, framesPerSecond: framesPerSecond)
+            }
+        } catch {
+            session.removeInput(input)
+            session.removeOutput(output)
+            session.commitConfiguration()
+            throw error
+        }
         session.commitConfiguration()
         await Task.detached { [session] in session.startRunning() }.value
         isReady = session.isRunning
+    }
+
+    private func configure(camera: AVCaptureDevice, framesPerSecond: Int) throws {
+        let rate = Double(framesPerSecond)
+        let supportedFormats = camera.formats.filter { format in
+            format.videoSupportedFrameRateRanges.contains { $0.minFrameRate <= rate && rate <= $0.maxFrameRate }
+        }
+        let currentDimensions = CMVideoFormatDescriptionGetDimensions(camera.activeFormat.formatDescription)
+        let currentPixels = Int(currentDimensions.width) * Int(currentDimensions.height)
+        guard let format = supportedFormats.first(where: { $0 == camera.activeFormat })
+            ?? supportedFormats.min(by: { lhs, rhs in
+                let left = CMVideoFormatDescriptionGetDimensions(lhs.formatDescription)
+                let right = CMVideoFormatDescriptionGetDimensions(rhs.formatDescription)
+                let leftPixels = Int(left.width) * Int(left.height)
+                let rightPixels = Int(right.width) * Int(right.height)
+                return abs(leftPixels - currentPixels) < abs(rightPixels - currentPixels)
+            }) else {
+            throw VideoCaptureError.unsupportedFrameRate(framesPerSecond)
+        }
+        try camera.lockForConfiguration()
+        defer { camera.unlockForConfiguration() }
+        camera.activeFormat = format
+        let duration = CMTime(value: 1, timescale: CMTimeScale(framesPerSecond))
+        camera.activeVideoMinFrameDuration = duration
+        camera.activeVideoMaxFrameDuration = duration
     }
 
     func start() throws {
@@ -59,12 +95,13 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
 }
 
 enum VideoCaptureError: LocalizedError {
-    case permissionDenied, unavailable, notRecording
+    case permissionDenied, unavailable, notRecording, unsupportedFrameRate(Int)
     var errorDescription: String? {
         switch self {
         case .permissionDenied: "Camera access is required for video recording."
         case .unavailable: "The camera is unavailable."
         case .notRecording: "No video recording is active."
+        case .unsupportedFrameRate(let rate): "The front camera does not support \(rate) fps. Choose another frame rate in Settings."
         }
     }
 }

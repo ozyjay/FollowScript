@@ -49,6 +49,7 @@ final class FollowScriptSettingsTests: XCTestCase {
         let data = Data(#"{"fontSize":42,"lastPresentationMode":"audiovisual"}"#.utf8)
         let settings = try JSONDecoder().decode(FollowScriptSettings.self, from: data)
         XCTAssertEqual(settings.videoPromptPlacement, .automatic)
+        XCTAssertEqual(settings.videoFrameRate, .automatic)
     }
 
     func testVideoPromptPlacementPersistsAndFollowsCameraEdge() throws {
@@ -64,4 +65,14 @@ final class FollowScriptSettingsTests: XCTestCase {
             isLandscape: true, orientation: .landscapeRight), .leading)
     }
 
+    func testVideoFrameRatePersists() throws {
+        for rate in FollowScriptSettings.VideoFrameRate.allCases {
+            var settings = FollowScriptSettings()
+            settings.videoFrameRate = rate
+            let decoded = try JSONDecoder().decode(FollowScriptSettings.self, from: JSONEncoder().encode(settings))
+            XCTAssertEqual(decoded.videoFrameRate, rate)
+        }
+        XCTAssertEqual(FollowScriptSettings.VideoFrameRate.fps25.framesPerSecond, 25)
+        XCTAssertEqual(FollowScriptSettings.VideoFrameRate.fps50.framesPerSecond, 50)
+    }
 }

@@ -39,6 +39,18 @@ struct SettingsView: View {
                         .accessibilityHint("Prevents auto-lock while the teleprompter is open and may use more battery")
                 }
 
+                Section {
+                    Picker("Frame rate", selection: $model.settings.videoFrameRate) {
+                        ForEach(FollowScriptSettings.VideoFrameRate.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+                } header: {
+                    Text("Video recording")
+                } footer: {
+                    Text("Automatic uses the camera's default frame rate. Higher frame rates may use more storage and may be unavailable on some devices.")
+                }
+
                 Section("Script processing") {
                     Toggle(
                         "Remove extra whitespace",

@@ -33,7 +33,30 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
         }
     }
 
+    enum VideoFrameRate: String, Codable, CaseIterable, Identifiable, Sendable {
+        case automatic
+        case fps24
+        case fps25
+        case fps30
+        case fps50
+        case fps60
+
+        var id: String { rawValue }
+        var framesPerSecond: Int? {
+            switch self {
+            case .automatic: nil
+            case .fps24: 24
+            case .fps25: 25
+            case .fps30: 30
+            case .fps50: 50
+            case .fps60: 60
+            }
+        }
+        var title: String { framesPerSecond.map { "\($0) fps" } ?? "Automatic" }
+    }
+
     var videoPromptPlacement: VideoPromptPlacement = .automatic
+    var videoFrameRate: VideoFrameRate = .automatic
     var lastPresentationMode: PresentationMode = .teleprompter
     var fontSize: Double = 42
     var lineSpacing: Double = 12
@@ -49,6 +72,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case videoPromptPlacement
+        case videoFrameRate
         case lastPresentationMode
         case fontSize
         case lineSpacing
@@ -68,6 +92,7 @@ struct FollowScriptSettings: Codable, Equatable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         videoPromptPlacement = try container.decodeIfPresent(VideoPromptPlacement.self, forKey: .videoPromptPlacement) ?? .automatic
+        videoFrameRate = try container.decodeIfPresent(VideoFrameRate.self, forKey: .videoFrameRate) ?? .automatic
         lastPresentationMode = try container.decodeIfPresent(PresentationMode.self, forKey: .lastPresentationMode) ?? .teleprompter
         fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 42
         lineSpacing = try container.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? 12

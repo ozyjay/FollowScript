@@ -39,4 +39,6 @@ Saved presentations are reached through Library in the script editor. Starting t
 
 ## Video prompt placement
 
+Settings offers Automatic, 24, 30 and 60 fps for video recording. Automatic retains the camera's default frame rate. An explicit choice is applied when video mode prepares the front camera; if the device cannot provide that rate, the presenter sees an error and can choose another rate. Higher frame rates can increase storage use. Confirm the selected rate in a saved take on a physical iPhone.
+
 Video mode keeps the front-camera preview behind the script. In portrait, the prompt occupies a compact strip immediately below the top safe area, near the front camera, while the controls move to the bottom. In landscape, Automatic docks the prompt against the short edge nearest the front camera based on interface orientation. A bottom control lets the presenter choose Top, Left or Right when the device is mounted differently; the choice is remembered. The prompt strip has a translucent dark backing for legibility over the preview. Speech alignment, token cues, manual scrolling and the regular teleprompter/audio layout are unchanged. The prompt is SwiftUI over the camera preview and is not included in recorded video. Check the real device's lens position, eyeline, rotation and large-text readability before claiming a filming setup is optimal.

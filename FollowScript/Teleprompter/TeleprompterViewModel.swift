@@ -210,6 +210,7 @@ final class TeleprompterViewModel: ObservableObject {
     let script: ScriptDocument
     let mode: PresentationMode
     let videoCapture = VideoCaptureCoordinator()
+    private let videoFrameRate: FollowScriptSettings.VideoFrameRate
     private var project: PresentationProject?
     private var takeID: UUID?
     private var recordingStartedAt: Date?
@@ -266,6 +267,7 @@ final class TeleprompterViewModel: ObservableObject {
         project: PresentationProject? = nil,
         ignoresSquareBracketedText: Bool = true,
         removesExtraWhitespace: Bool = true,
+        videoFrameRate: FollowScriptSettings.VideoFrameRate = .automatic,
         logsTimestampedTrackingInformation: Bool = false,
         service: (any SpeechRecognitionService)? = nil,
         engine: ScriptAlignmentEngine = ScriptAlignmentEngine(),
@@ -286,6 +288,7 @@ final class TeleprompterViewModel: ObservableObject {
         self.microphoneCheckRoomDuration = microphoneCheckRoomDuration
         self.microphoneCheckReadingDuration = microphoneCheckReadingDuration
         self.logsTimestampedTrackingInformation = logsTimestampedTrackingInformation
+        self.videoFrameRate = videoFrameRate
         trackingLatency = TrackingLatencyInstrument(isEnabled: logsTimestampedTrackingInformation)
     }
 
@@ -381,7 +384,7 @@ final class TeleprompterViewModel: ObservableObject {
     }
 
     func prepareVideo() async {
-        do { try await videoCapture.prepare() }
+        do { try await videoCapture.prepare(frameRate: videoFrameRate) }
         catch { recordingErrorMessage = error.localizedDescription }
     }
 
@@ -392,7 +395,7 @@ final class TeleprompterViewModel: ObservableObject {
             return
         }
         do {
-            if mode == .audiovisual && !videoCapture.isReady { try await videoCapture.prepare() }
+            if mode == .audiovisual && !videoCapture.isReady { try await videoCapture.prepare(frameRate: videoFrameRate) }
             if project == nil { project = try PresentationProjectStore.createProject(script: script.text) }
             try service.startRecording()
             if mode == .audiovisual {
