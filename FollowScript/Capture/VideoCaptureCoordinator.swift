@@ -9,6 +9,7 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
     private(set) var camera: AVCaptureDevice?
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var captureRotationObservation: NSKeyValueObservation?
+    private var startCompletion: CheckedContinuation<Date, Error>?
     private var completion: CheckedContinuation<URL, Error>?
     private var rawVideoURL: URL?
     @Published private(set) var isReady = false
@@ -98,16 +99,17 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
         camera.activeVideoMaxFrameDuration = duration
     }
 
-    func start() throws -> Date {
+    func start() async throws -> Date {
         guard isReady, !output.isRecording else { throw VideoCaptureError.unavailable }
         if let rotationCoordinator {
             applyCaptureRotation(rotationCoordinator.videoRotationAngleForHorizonLevelCapture)
         }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).mov")
         rawVideoURL = url
-        let startedAt = Date()
-        output.startRecording(to: url, recordingDelegate: self)
-        return startedAt
+        return try await withCheckedThrowingContinuation { continuation in
+            startCompletion = continuation
+            output.startRecording(to: url, recordingDelegate: self)
+        }
     }
 
     func stop() async throws -> URL {
@@ -130,9 +132,22 @@ final class VideoCaptureCoordinator: NSObject, ObservableObject, AVCaptureFileOu
     nonisolated func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL,
                                 from connections: [AVCaptureConnection], error: Error?) {
         Task { @MainActor in
-            if let error { completion?.resume(throwing: error) }
+            if let error {
+                startCompletion?.resume(throwing: error)
+                completion?.resume(throwing: error)
+            }
             else { completion?.resume(returning: outputFileURL) }
+            startCompletion = nil
             completion = nil
+        }
+    }
+
+    nonisolated func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL,
+                                from connections: [AVCaptureConnection]) {
+        let startedAt = Date()
+        Task { @MainActor in
+            startCompletion?.resume(returning: startedAt)
+            startCompletion = nil
         }
     }
 }

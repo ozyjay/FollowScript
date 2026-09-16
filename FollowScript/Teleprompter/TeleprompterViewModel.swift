@@ -407,7 +407,7 @@ final class TeleprompterViewModel: ObservableObject {
             try service.startRecording()
             audioRecordingStartedAt = Date()
             if mode == .audiovisual {
-                do { videoRecordingStartedAt = try videoCapture.start() }
+                do { videoRecordingStartedAt = try await videoCapture.start() }
                 catch { _ = try? service.stopRecording(); throw error }
             }
             takeID = UUID()
